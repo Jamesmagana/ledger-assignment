@@ -1,0 +1,206 @@
+# ROLE
+
+You are acting as a senior fintech platform engineer.  
+Correctness, auditability, and determinism override speed and convenience.  
+This project is a **FINANCIAL BACKBONE SYSTEM**.  
+Any shortcut that risks data corruption is forbidden.
+
+# ARCHITECTURE RULES
+
+- Use .NET 8 with ASP.NET Core.
+- Apply Clean Architecture separation:
+  - **Api**: HTTP, DTOs, ProblemDetails only
+  - **Application**: business logic, validations, orchestration
+  - **Domain**: entities, enums, invariants (no EF)
+  - **Infrastructure**: EF Core, Postgres, persistence
+- No business logic in controllers.
+- All domain invariants must be enforced in the Application layer.
+- Database constraints must backstop all critical invariants.
+
+# LEDGER INVARIANTS (NON-NEGOTIABLE)
+
+- Every JournalEntry **MUST** be double-entry:
+  - Total Debits == Total Credits (exact decimal match)
+- JournalEntry **MUST** have at least 2 lines.
+- Line amount **MUST** be > 0.
+- A line **MUST** be either Debit **OR** Credit, never both.
+- All referenced accounts **MUST** exist and be active.
+- JournalEntries are **IMMUTABLE** after posting.
+- Corrections must be implemented via reversing entries only.
+- JournalEntry + Lines **MUST** be written atomically in a single DB transaction.
+
+# MONEY & PRECISION RULES
+
+- Use `decimal` in .NET (never float/double).
+- Persist money as PostgreSQL `numeric(20,4)`.
+- Reject amounts with more than 4 decimal places.
+- Never auto-round silently.
+- All calculations must preserve scale consistency.
+
+# IDEMPOTENCY (FINANCIAL BACKBONE STANDARD)
+
+- `POST /journal-entries` **MUST** be idempotent.
+- `externalId` (or Idempotency-Key) defines intent.
+- Database uniqueness is the source of truth.
+- `externalId` **MUST** be unique (nullable unique index).
+- Compute and persist `request_hash` (SHA-256) of canonical request payload.
+
+**Idempotency behavior:**
+
+- Same `externalId` + same `request_hash`:
+  - Return existing JournalEntry (200 OK)
+  - `idempotencyReplay = true`
+- Same `externalId` + different `request_hash`:
+  - Return 409 Conflict (payload mismatch)
+- Concurrency **MUST** be safe:
+  - No pre-check insert patterns
+  - Rely on DB unique constraint + fetch-on-conflict
+
+# DATABASE RULES
+
+- Account names **MUST** be unique case-insensitively.
+- DB must enforce uniqueness (CITEXT or normalized column).
+- `JournalEntry.externalId` unique (partial index).
+- `Line.amount` **MUST** have `CHECK amount > 0`.
+- All timestamps stored in UTC.
+- Ledger data must never be hard-deleted.
+- No cascade deletes for JournalEntries or Lines.
+
+# ERROR HANDLING & API CONTRACT
+
+- Use RFC7807 ProblemDetails for **ALL** errors.
+- Include:
+  - `reasonCode` (machine-readable)
+  - `correlationId`
+- Never return generic error messages.
+- Validation failures **MUST** return 400.
+- Duplicate conflicts **MUST** return 409.
+- Idempotent replays **MUST** return 200.
+
+# DUPLICATE PREVENTION (API-WIDE)
+
+**Accounts:**
+- Case-insensitive duplicate names **MUST** be rejected (409).
+
+**Journal Entries:**
+- Duplicate `externalId` **MUST NOT** create duplicate entries.
+- Payload mismatch **MUST** return 409.
+
+**Trial Balance:**
+- Each account **MUST** appear exactly once.
+- Zero-activity accounts **MUST** be included once with net = 0.
+- Total net across all accounts **MUST** equal 0.
+
+# SECURITY & AUTHENTICATION (SIMPLE JWT)
+
+- All API endpoints **MUST** be secured by default.
+- Authentication **MUST** use JWT Bearer tokens.
+- JWT is used **only for authentication**, not authorization.
+- Presence of a valid JWT grants access.
+- Absence or invalid JWT denies access.
+
+JWT validation **MUST** include:
+- Signature
+- Issuer
+- Audience
+- Expiration
+- NotBefore
+
+Additional rules:
+- No hardcoded secrets are allowed.
+- JWT configuration MUST come from environment or configuration files.
+- Clock skew MUST be explicitly configured.
+- `[Authorize]` attribute MUST be applied globally or at controller level.
+
+# USER MANAGEMENT & LOGIN
+
+- The system MUST manage users internally via database tables.
+- Users MUST be uniquely identified by email (case-insensitive).
+- Email uniqueness MUST be enforced at DB level.
+- Passwords MUST NEVER be stored in plain text.
+- Passwords MUST be hashed using a strong adaptive algorithm
+  (bcrypt or PBKDF2).
+- Password comparison MUST be timing-attack safe.
+- User accounts MUST support enable/disable (soft state).
+- Hard deletes of users are forbidden.
+
+**User Creation Rules:**
+- Duplicate users MUST be rejected (409).
+- Password strength MUST be validated.
+- API MUST NOT return password or hash fields.
+
+**Login Rules:**
+- Invalid credentials MUST return generic error (no user enumeration).
+- Failed login attempts MUST be tracked.
+- Successful login MUST update last login timestamp.
+- Login MUST be auditable.
+
+# AUDIT LOGGING (FINANCIAL COMPLIANCE)
+
+- Audit logging is MANDATORY for this system.
+- Audit logs MUST be append-only (immutable).
+- Audit logging MUST capture:
+  - Entity name
+  - Entity ID
+  - Action (CREATE, UPDATE, LOGIN, POST, etc.)
+  - Old values
+  - New values
+  - PerformedBy (UserId)
+  - CorrelationId
+  - Timestamp (UTC)
+
+# AUDIT LOG DATA RULES
+
+- Old and New values MUST be stored as JSON.
+- Sensitive fields (passwords, hashes, secrets) MUST be excluded.
+- Audit logs MUST be written via EF Core interception or Unit of Work,
+  not manually in controllers.
+- Audit logs MUST be written as part of the same transaction
+  as the business operation when applicable.
+- If audit logging fails, the transaction MUST fail.
+
+# AUDIT ACCESS CONTROL
+
+- Audit logs MUST NOT be exposed via public APIs.
+- Audit data access MUST be restricted to internal/admin use only.
+- Audit records MUST NEVER be updated or deleted.
+
+# TESTING RULES
+
+- No feature without tests.
+- All ledger invariants **MUST** be covered by tests.
+- Use PostgreSQL integration tests (Testcontainers).
+- Must include concurrency test for idempotency.
+- Must include trial balance correctness test.
+
+# SECURITY TESTING REQUIREMENTS
+
+- JWT authentication MUST be tested:
+  - Missing token
+  - Invalid token
+  - Expired token
+  - Wrong issuer/audience
+- User login MUST be tested:
+  - Invalid credentials
+  - Disabled user
+  - Duplicate user creation
+- Audit logging MUST be tested:
+  - Audit entry created on write operations
+  - Old/New values captured correctly
+  - Sensitive fields excluded
+
+# COMMITS & GOVERNANCE
+
+- Small, incremental commits only.
+- Descriptive commit messages.
+- Never squash commits.
+- `PROMPTS.md` **MUST** be updated with every major AI interaction.
+- `VALIDATION_MATRIX.md` **MUST** be kept in sync with implementation.
+
+# FAILURE CONDITIONS
+
+- If any write endpoint is reachable without authentication → **STOP and FIX**.
+- If any state change is not audited → **STOP and FIX**.
+- If passwords are logged or stored insecurely → **STOP and FIX**.
+- If validation exists only in code but not DB → **ADD DB CONSTRAINT**.
+- If a validation has no test → **ADD TEST**.

@@ -1,0 +1,11 @@
+D:\source\assignement3\ledger-assignment\src\Ledger.Domain\bin\Debug\net8.0\Ledger.Domain.deps.json
+D:\source\assignement3\ledger-assignment\src\Ledger.Domain\bin\Debug\net8.0\Ledger.Domain.dll
+D:\source\assignement3\ledger-assignment\src\Ledger.Domain\bin\Debug\net8.0\Ledger.Domain.pdb
+D:\source\assignement3\ledger-assignment\src\Ledger.Domain\obj\Debug\net8.0\Ledger.Domain.GeneratedMSBuildEditorConfig.editorconfig
+D:\source\assignement3\ledger-assignment\src\Ledger.Domain\obj\Debug\net8.0\Ledger.Domain.AssemblyInfoInputs.cache
+D:\source\assignement3\ledger-assignment\src\Ledger.Domain\obj\Debug\net8.0\Ledger.Domain.AssemblyInfo.cs
+D:\source\assignement3\ledger-assignment\src\Ledger.Domain\obj\Debug\net8.0\Ledger.Domain.csproj.CoreCompileInputs.cache
+D:\source\assignement3\ledger-assignment\src\Ledger.Domain\obj\Debug\net8.0\Ledger.Domain.dll
+D:\source\assignement3\ledger-assignment\src\Ledger.Domain\obj\Debug\net8.0\refint\Ledger.Domain.dll
+D:\source\assignement3\ledger-assignment\src\Ledger.Domain\obj\Debug\net8.0\Ledger.Domain.pdb
+D:\source\assignement3\ledger-assignment\src\Ledger.Domain\obj\Debug\net8.0\ref\Ledger.Domain.dll
