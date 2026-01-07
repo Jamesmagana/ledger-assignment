@@ -1,6 +1,7 @@
 using Ledger.Application.Exceptions;
 using Ledger.Application.Services;
 using Ledger.Domain.Entities;
+using Microsoft.AspNetCore.Http;
 using Moq;
 using Xunit;
 
@@ -10,13 +11,27 @@ public class AuthenticationServiceTests
 {
     private readonly Mock<IUserService> _userServiceMock;
     private readonly Mock<IJwtTokenService> _jwtTokenServiceMock;
+    private readonly Mock<IAuditLogService> _auditLogServiceMock;
+    private readonly Mock<IHttpContextAccessor> _httpContextAccessorMock;
     private readonly AuthenticationService _service;
 
     public AuthenticationServiceTests()
     {
         _userServiceMock = new Mock<IUserService>();
         _jwtTokenServiceMock = new Mock<IJwtTokenService>();
-        _service = new AuthenticationService(_userServiceMock.Object, _jwtTokenServiceMock.Object);
+        _auditLogServiceMock = new Mock<IAuditLogService>();
+        _httpContextAccessorMock = new Mock<IHttpContextAccessor>();
+        
+        // Setup HttpContextAccessor to return a mock HttpContext with CorrelationId
+        var httpContext = new DefaultHttpContext();
+        httpContext.Items["CorrelationId"] = Guid.NewGuid().ToString();
+        _httpContextAccessorMock.Setup(x => x.HttpContext).Returns(httpContext);
+        
+        _service = new AuthenticationService(
+            _userServiceMock.Object,
+            _jwtTokenServiceMock.Object,
+            _auditLogServiceMock.Object,
+            _httpContextAccessorMock.Object);
     }
 
     [Fact]
@@ -43,6 +58,15 @@ public class AuthenticationServiceTests
         Assert.Equal(userId, result.UserId);
         Assert.Equal(email, result.Email);
         _jwtTokenServiceMock.Verify(j => j.GenerateToken(userId, email), Times.Once);
+        _auditLogServiceMock.Verify(a => a.LogEntityChangeAsync(
+            "User",
+            userId,
+            "LOGIN",
+            null,
+            It.IsAny<object>(),
+            userId,
+            It.IsAny<string>(),
+            It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]

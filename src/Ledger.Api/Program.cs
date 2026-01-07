@@ -92,9 +92,17 @@ builder.Services.AddSwaggerGen(options =>
     });
 });
 
-// Register DbContext
+// Add HttpContextAccessor for audit logging
+builder.Services.AddHttpContextAccessor();
+
+// Register audit logging services
+builder.Services.AddScoped<Ledger.Infrastructure.Data.Services.IUserContextService, Ledger.Infrastructure.Data.Services.UserContextService>();
+builder.Services.AddScoped<IAuditLogRepository, AuditLogRepository>();
+builder.Services.AddScoped<IAuditLogService, AuditLogService>();
+
+// Register DbContext with interceptor
 var connectionString = builder.Configuration.GetConnectionString("LedgerDb");
-builder.Services.AddDbContext<LedgerDbContext>(options =>
+builder.Services.AddDbContext<LedgerDbContext>((sp, options) =>
 {
     options.UseNpgsql(connectionString);
     
@@ -102,6 +110,13 @@ builder.Services.AddDbContext<LedgerDbContext>(options =>
     {
         options.EnableSensitiveDataLogging();
     }
+
+    // Add audit logging interceptor
+    var httpContextAccessor = sp.GetRequiredService<IHttpContextAccessor>();
+    var userContextService = sp.GetRequiredService<Ledger.Infrastructure.Data.Services.IUserContextService>();
+    options.AddInterceptors(new Ledger.Infrastructure.Data.Interceptors.AuditLoggingInterceptor(
+        httpContextAccessor,
+        userContextService));
 });
 
 // Add health checks
