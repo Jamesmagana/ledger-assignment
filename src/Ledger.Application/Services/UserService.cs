@@ -1,8 +1,8 @@
+using System.Text.RegularExpressions;
 using Ledger.Application.Exceptions;
 using Ledger.Application.Repositories;
 using Ledger.Domain.Entities;
 using Microsoft.EntityFrameworkCore;
-using System.Text.RegularExpressions;
 
 namespace Ledger.Application.Services;
 

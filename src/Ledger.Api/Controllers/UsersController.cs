@@ -33,7 +33,7 @@ public class UsersController : ControllerBase
     public async Task<IActionResult> CreateUser([FromBody] CreateUserRequest request, CancellationToken cancellationToken)
     {
         var user = await _userService.CreateUserAsync(request.Email, request.Password, cancellationToken);
-        
+
         var response = new UserResponse
         {
             Id = user.Id,
@@ -42,7 +42,7 @@ public class UsersController : ControllerBase
             CreatedAt = user.CreatedAt,
             UpdatedAt = user.UpdatedAt
         };
-        
+
         return CreatedAtAction(nameof(CreateUser), new { id = user.Id }, response);
     }
 }

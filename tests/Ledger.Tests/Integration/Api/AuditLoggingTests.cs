@@ -1,3 +1,7 @@
+using System.Net;
+using System.Net.Http.Headers;
+using System.Net.Http.Json;
+using System.Text.Json;
 using Ledger.Api.DTOs.Accounts;
 using Ledger.Api.DTOs.Auth;
 using Ledger.Api.DTOs.JournalEntries;
@@ -8,10 +12,6 @@ using Ledger.Tests.Helpers;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
-using System.Net;
-using System.Net.Http.Headers;
-using System.Net.Http.Json;
-using System.Text.Json;
 using Testcontainers.PostgreSql;
 using Xunit;
 
@@ -122,7 +122,7 @@ public class AuditLoggingTests : IAsyncLifetime
         Assert.NotNull(auditLog.NewValues);
         Assert.Null(auditLog.OldValues);
         Assert.Equal(loginResult.UserId, auditLog.PerformedBy);
-        
+
         // Verify sensitive fields are excluded
         var newValuesJson = JsonSerializer.Deserialize<Dictionary<string, object?>>(auditLog.NewValues);
         Assert.NotNull(newValuesJson);
@@ -241,7 +241,7 @@ public class AuditLoggingTests : IAsyncLifetime
         Assert.Equal("CREATE", auditLog.Action);
         Assert.Equal(correlationId, auditLog.CorrelationId);
         Assert.NotNull(auditLog.NewValues);
-        
+
         // Verify PasswordHash is excluded
         var newValuesJson = JsonSerializer.Deserialize<Dictionary<string, object?>>(auditLog.NewValues);
         Assert.NotNull(newValuesJson);
@@ -379,7 +379,7 @@ public class AuditLoggingTests : IAsyncLifetime
         var request = new CreateAccountRequest(name, type, true);
         var response = await _client!.PostAsJsonAsync("/api/accounts", request);
         response.EnsureSuccessStatusCode();
-        return await response.Content.ReadFromJsonAsync<AccountResponse>() 
+        return await response.Content.ReadFromJsonAsync<AccountResponse>()
             ?? throw new InvalidOperationException("Failed to create account");
     }
 

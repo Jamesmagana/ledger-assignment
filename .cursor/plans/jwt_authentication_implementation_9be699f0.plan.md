@@ -527,4 +527,3 @@ public static class TestJwtTokenHelper
 - **Global Authorization:** All endpoints protected by default
 - **Health Check:** Should remain public (no authentication)
 - **ProblemDetails:** All 401 responses must use RFC7807 format
-- **CorrelationId:** Must be included in all error responses

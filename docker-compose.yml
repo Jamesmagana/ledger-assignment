@@ -6,14 +6,14 @@ services:
     container_name: ledger-postgres
     environment:
       POSTGRES_DB: ledger
-      POSTGRES_USER: ledger_user
-      POSTGRES_PASSWORD: ledger_password
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: admin
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ledger_user -d ledger"]
+      test: ["CMD-SHELL", "pg_isready -U postgres -d ledger"]
       interval: 10s
       timeout: 5s
       retries: 5

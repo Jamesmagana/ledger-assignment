@@ -1,7 +1,7 @@
+using System.Security.Claims;
 using Ledger.Infrastructure.Data.Services;
 using Microsoft.AspNetCore.Http;
 using Moq;
-using System.Security.Claims;
 using Xunit;
 
 namespace Ledger.Tests.Infrastructure.Data.Services;

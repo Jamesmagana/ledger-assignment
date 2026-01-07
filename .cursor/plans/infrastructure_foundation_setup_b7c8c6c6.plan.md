@@ -210,5 +210,3 @@ ledger-assignment/
 4. `GET /health` returns 200 OK
 5. `GET /health` with database down returns 503
 6. Request with `X-Correlation-Id` header preserves value
-7. Request without header generates new correlation ID
-8. Correlation ID appears in response headers

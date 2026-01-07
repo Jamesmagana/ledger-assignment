@@ -367,4 +367,3 @@ All errors use ProblemDetails format:
 5. Type immutability enforced
 6. Validation errors return 400 with reasonCode
 7. Duplicate errors return 409 with reasonCode
-8. Not found errors return 404 with reasonCode

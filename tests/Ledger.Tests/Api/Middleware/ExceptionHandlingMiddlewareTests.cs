@@ -1,3 +1,6 @@
+using System.Net;
+using System.Text;
+using System.Text.Json;
 using Ledger.Api.Middleware;
 using Ledger.Api.Models;
 using Ledger.Application.Exceptions;
@@ -7,9 +10,6 @@ using Microsoft.AspNetCore.Http.Features;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Moq;
-using System.Net;
-using System.Text;
-using System.Text.Json;
 using Xunit;
 
 namespace Ledger.Tests.Api.Middleware;
@@ -257,7 +257,7 @@ public class ExceptionHandlingMiddlewareTests
         };
         var jsonDoc = JsonDocument.Parse(body);
         var root = jsonDoc.RootElement;
-        
+
         var problem = new ProblemDetails
         {
             Type = root.TryGetProperty("type", out var typeProp) ? typeProp.GetString() : null,
@@ -271,7 +271,7 @@ public class ExceptionHandlingMiddlewareTests
         // Extract extensions (reasonCode, correlationId, etc.)
         foreach (var prop in root.EnumerateObject())
         {
-            if (prop.Name != "type" && prop.Name != "title" && prop.Name != "status" && 
+            if (prop.Name != "type" && prop.Name != "title" && prop.Name != "status" &&
                 prop.Name != "detail" && prop.Name != "instance")
             {
                 problem.Extensions[prop.Name] = prop.Value.ValueKind switch

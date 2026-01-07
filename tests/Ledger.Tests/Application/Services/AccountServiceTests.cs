@@ -64,7 +64,7 @@ public class AccountServiceTests
         // Act & Assert
         var exception = await Assert.ThrowsAsync<ValidationException>(
             () => _service.CreateAccountAsync(name, type, true));
-        
+
         Assert.Equal("INVALID_NAME", exception.ReasonCode);
     }
 
@@ -78,7 +78,7 @@ public class AccountServiceTests
         // Act & Assert
         var exception = await Assert.ThrowsAsync<ValidationException>(
             () => _service.CreateAccountAsync(name, type, true));
-        
+
         Assert.Equal("INVALID_NAME", exception.ReasonCode);
     }
 
@@ -92,7 +92,7 @@ public class AccountServiceTests
         // Act & Assert
         var exception = await Assert.ThrowsAsync<ValidationException>(
             () => _service.CreateAccountAsync(name, type, true));
-        
+
         Assert.Equal("INVALID_NAME", exception.ReasonCode);
     }
 
@@ -116,7 +116,7 @@ public class AccountServiceTests
         // Act & Assert
         var exception = await Assert.ThrowsAsync<ConflictException>(
             () => _service.CreateAccountAsync(name, type, true));
-        
+
         Assert.Equal("DUPLICATE_ACCOUNT_NAME", exception.ReasonCode);
         _repositoryMock.Verify(r => r.AddAsync(It.IsAny<Account>(), It.IsAny<CancellationToken>()), Times.Never);
     }
@@ -142,7 +142,7 @@ public class AccountServiceTests
         // Act & Assert
         var exception = await Assert.ThrowsAsync<ConflictException>(
             () => _service.CreateAccountAsync(name, type, true));
-        
+
         Assert.Equal("DUPLICATE_ACCOUNT_NAME", exception.ReasonCode);
     }
 
@@ -197,7 +197,7 @@ public class AccountServiceTests
         // Act & Assert
         var exception = await Assert.ThrowsAsync<ValidationException>(
             () => _service.GetAccountByIdAsync(id));
-        
+
         Assert.Equal("INVALID_ACCOUNT_ID", exception.ReasonCode);
     }
 
@@ -273,7 +273,7 @@ public class AccountServiceTests
         // Act & Assert
         var exception = await Assert.ThrowsAsync<NotFoundException>(
             () => _service.UpdateAccountIsActiveAsync(id, false));
-        
+
         Assert.Equal("ACCOUNT_NOT_FOUND", exception.ReasonCode);
         _repositoryMock.Verify(r => r.UpdateAsync(It.IsAny<Account>(), It.IsAny<CancellationToken>()), Times.Never);
     }
@@ -287,7 +287,7 @@ public class AccountServiceTests
         // Act & Assert
         var exception = await Assert.ThrowsAsync<ValidationException>(
             () => _service.UpdateAccountIsActiveAsync(id, false));
-        
+
         Assert.Equal("INVALID_ACCOUNT_ID", exception.ReasonCode);
     }
 }

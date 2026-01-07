@@ -1,14 +1,14 @@
+using System.Net;
+using System.Net.Http.Json;
 using Ledger.Api.DTOs.Users;
-using Ledger.Infrastructure.Data;
-using Ledger.Infrastructure.Repositories;
 using Ledger.Application.Repositories;
 using Ledger.Application.Services;
+using Ledger.Infrastructure.Data;
+using Ledger.Infrastructure.Repositories;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
-using System.Net;
-using System.Net.Http.Json;
 using Testcontainers.PostgreSql;
 
 namespace Ledger.Tests.Integration.Api;
@@ -169,7 +169,7 @@ public class UsersControllerTests : IAsyncLifetime
         response.EnsureSuccessStatusCode();
         var userResponse = await response.Content.ReadFromJsonAsync<UserResponse>();
         Assert.NotNull(userResponse);
-        
+
         // Verify response JSON does not contain password hash
         var responseJson = await response.Content.ReadAsStringAsync();
         Assert.DoesNotContain("PasswordHash", responseJson);

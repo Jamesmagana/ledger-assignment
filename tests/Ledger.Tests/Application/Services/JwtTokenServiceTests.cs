@@ -1,7 +1,7 @@
+using System.IdentityModel.Tokens.Jwt;
 using Ledger.Application.Services;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
-using System.IdentityModel.Tokens.Jwt;
 using Xunit;
 
 namespace Ledger.Tests.Application.Services;
@@ -68,7 +68,7 @@ public class JwtTokenServiceTests
         // Assert
         var handler = new JwtSecurityTokenHandler();
         var jsonToken = handler.ReadJwtToken(token);
-        
+
         Assert.Equal(userId.ToString(), jsonToken.Claims.First(c => c.Type == "sub").Value);
         Assert.Equal(email, jsonToken.Claims.First(c => c.Type == "email").Value);
         Assert.NotNull(jsonToken.Claims.FirstOrDefault(c => c.Type == "jti"));
@@ -87,7 +87,7 @@ public class JwtTokenServiceTests
         // Assert
         var handler = new JwtSecurityTokenHandler();
         var jsonToken = handler.ReadJwtToken(token);
-        
+
         Assert.Equal(_settings.Issuer, jsonToken.Issuer);
         Assert.Contains(_settings.Audience, jsonToken.Audiences);
     }
@@ -105,7 +105,7 @@ public class JwtTokenServiceTests
         // Assert
         var handler = new JwtSecurityTokenHandler();
         var jsonToken = handler.ReadJwtToken(token);
-        
+
         Assert.True(jsonToken.ValidTo > DateTime.UtcNow);
         Assert.True(jsonToken.ValidTo <= DateTime.UtcNow.AddHours(2)); // Should be around 1 hour
     }

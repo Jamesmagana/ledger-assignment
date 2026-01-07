@@ -1,3 +1,5 @@
+using System.Text;
+using System.Text.Json;
 using Ledger.Api.Configuration;
 using Ledger.Api.Middleware;
 using Ledger.Application.Repositories;
@@ -10,8 +12,6 @@ using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
-using System.Text;
-using System.Text.Json;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -22,7 +22,7 @@ builder.Services.AddControllers()
         // Configure ProblemDetails for model validation errors
         options.InvalidModelStateResponseFactory = context =>
         {
-            var correlationId = context.HttpContext.Items["CorrelationId"]?.ToString() 
+            var correlationId = context.HttpContext.Items["CorrelationId"]?.ToString()
                 ?? Guid.NewGuid().ToString();
 
             var problemDetails = new Microsoft.AspNetCore.Mvc.ProblemDetails
@@ -105,7 +105,7 @@ var connectionString = builder.Configuration.GetConnectionString("LedgerDb");
 builder.Services.AddDbContext<LedgerDbContext>((sp, options) =>
 {
     options.UseNpgsql(connectionString);
-    
+
     if (builder.Environment.IsDevelopment())
     {
         options.EnableSensitiveDataLogging();

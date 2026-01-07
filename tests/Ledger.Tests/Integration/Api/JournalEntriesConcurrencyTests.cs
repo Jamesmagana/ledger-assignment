@@ -1,15 +1,15 @@
+using System.Net;
+using System.Net.Http.Json;
 using Ledger.Api.DTOs.Accounts;
 using Ledger.Api.DTOs.JournalEntries;
+using Ledger.Application.Repositories;
+using Ledger.Application.Services;
 using Ledger.Domain.Enums;
 using Ledger.Infrastructure.Data;
 using Ledger.Infrastructure.Repositories;
-using Ledger.Application.Repositories;
-using Ledger.Application.Services;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
-using System.Net;
-using System.Net.Http.Json;
 using Testcontainers.PostgreSql;
 
 namespace Ledger.Tests.Integration.Api;
@@ -127,7 +127,7 @@ public class JournalEntriesConcurrencyTests : IAsyncLifetime
         foreach (var response in responses)
         {
             Assert.True(
-                response.StatusCode == HttpStatusCode.Created || 
+                response.StatusCode == HttpStatusCode.Created ||
                 response.StatusCode == HttpStatusCode.OK,
                 $"Unexpected status code: {response.StatusCode}");
         }
@@ -149,7 +149,7 @@ public class JournalEntriesConcurrencyTests : IAsyncLifetime
         var dbContext = scope.ServiceProvider.GetRequiredService<LedgerDbContext>();
         var count = await dbContext.JournalEntries
             .CountAsync(je => je.ExternalId == externalId);
-        
+
         Assert.Equal(1, count);
 
         // Verify all responses are idempotent replays (except possibly the first one)

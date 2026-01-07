@@ -21,12 +21,12 @@ public class AuthenticationServiceTests
         _jwtTokenServiceMock = new Mock<IJwtTokenService>();
         _auditLogServiceMock = new Mock<IAuditLogService>();
         _httpContextAccessorMock = new Mock<IHttpContextAccessor>();
-        
+
         // Setup HttpContextAccessor to return a mock HttpContext with CorrelationId
         var httpContext = new DefaultHttpContext();
         httpContext.Items["CorrelationId"] = Guid.NewGuid().ToString();
         _httpContextAccessorMock.Setup(x => x.HttpContext).Returns(httpContext);
-        
+
         _service = new AuthenticationService(
             _userServiceMock.Object,
             _jwtTokenServiceMock.Object,

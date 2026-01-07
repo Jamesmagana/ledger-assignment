@@ -63,7 +63,7 @@ public static class SensitiveFieldExcluder
         }
 
         var dict = SerializeExcludingSensitive(obj);
-        
+
         if (dict.Count == 0)
         {
             return "{}";

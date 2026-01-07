@@ -59,15 +59,15 @@ public class AccountRepository : IAccountRepository
     public async Task<Account> UpdateAsync(Account account, CancellationToken cancellationToken = default)
     {
         var entry = _context.Accounts.Update(account);
-        
+
         // Set UpdatedAt to current UTC time
         entry.Property(nameof(account.UpdatedAt)).CurrentValue = DateTime.UtcNow;
-        
+
         await _context.SaveChangesAsync(cancellationToken);
-        
+
         // Reload to get the updated entity with correct UpdatedAt
         await entry.ReloadAsync(cancellationToken);
-        
+
         return entry.Entity;
     }
 }

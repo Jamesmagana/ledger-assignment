@@ -1,11 +1,11 @@
+using System.Net;
+using System.Text.Json;
 using Ledger.Api.Models;
 using Ledger.Application.Exceptions;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
-using System.Net;
-using System.Text.Json;
 
 namespace Ledger.Api.Middleware;
 

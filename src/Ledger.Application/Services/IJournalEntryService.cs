@@ -10,7 +10,7 @@ public interface IJournalEntryService
     Task<JournalEntryResult> PostJournalEntryAsync(
         CreateJournalEntryModel request,
         CancellationToken cancellationToken = default);
-    
+
     Task<JournalEntryResult?> GetJournalEntryByIdAsync(
         Guid id,
         CancellationToken cancellationToken = default);

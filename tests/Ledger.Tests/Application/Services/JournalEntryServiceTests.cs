@@ -42,7 +42,7 @@ public class JournalEntryServiceTests
         // Act & Assert
         var exception = await Assert.ThrowsAsync<ValidationException>(
             () => _service.PostJournalEntryAsync(request));
-        
+
         Assert.Equal("INVALID_LINE_COUNT", exception.ReasonCode);
     }
 
@@ -63,7 +63,7 @@ public class JournalEntryServiceTests
         // Act & Assert
         var exception = await Assert.ThrowsAsync<ValidationException>(
             () => _service.PostJournalEntryAsync(request));
-        
+
         Assert.Equal("INVALID_AMOUNT", exception.ReasonCode);
     }
 
@@ -84,7 +84,7 @@ public class JournalEntryServiceTests
         // Act & Assert
         var exception = await Assert.ThrowsAsync<ValidationException>(
             () => _service.PostJournalEntryAsync(request));
-        
+
         Assert.Equal("INVALID_AMOUNT_SCALE", exception.ReasonCode);
     }
 
@@ -115,7 +115,7 @@ public class JournalEntryServiceTests
         // Act & Assert
         var exception = await Assert.ThrowsAsync<ValidationException>(
             () => _service.PostJournalEntryAsync(request));
-        
+
         Assert.Equal("UNBALANCED_ENTRY", exception.ReasonCode);
     }
 
@@ -140,7 +140,7 @@ public class JournalEntryServiceTests
         // Act & Assert
         var exception = await Assert.ThrowsAsync<NotFoundException>(
             () => _service.PostJournalEntryAsync(request));
-        
+
         Assert.Equal("ACCOUNT_NOT_FOUND", exception.ReasonCode);
     }
 
@@ -171,7 +171,7 @@ public class JournalEntryServiceTests
         // Act & Assert
         var exception = await Assert.ThrowsAsync<ValidationException>(
             () => _service.PostJournalEntryAsync(request));
-        
+
         Assert.Equal("ACCOUNT_INACTIVE", exception.ReasonCode);
     }
 
@@ -317,7 +317,7 @@ public class JournalEntryServiceTests
         // Act & Assert
         var exception = await Assert.ThrowsAsync<ConflictException>(
             () => _service.PostJournalEntryAsync(request));
-        
+
         Assert.Equal("DUPLICATE_EXTERNAL_ID", exception.ReasonCode);
     }
 

@@ -66,11 +66,11 @@ public class User : BaseEntity
     {
         return new User(Email, PasswordHash, isEnabled)
         {
-            Id = this.Id,
-            CreatedAt = this.CreatedAt,
-            UpdatedAt = this.UpdatedAt,
-            FailedLoginAttempts = this.FailedLoginAttempts,
-            LastLoginAt = this.LastLoginAt
+            Id = Id,
+            CreatedAt = CreatedAt,
+            UpdatedAt = UpdatedAt,
+            FailedLoginAttempts = FailedLoginAttempts,
+            LastLoginAt = LastLoginAt
         };
     }
 
@@ -81,11 +81,11 @@ public class User : BaseEntity
     {
         return new User(Email, PasswordHash, IsEnabled)
         {
-            Id = this.Id,
-            CreatedAt = this.CreatedAt,
-            UpdatedAt = this.UpdatedAt,
+            Id = Id,
+            CreatedAt = CreatedAt,
+            UpdatedAt = UpdatedAt,
             FailedLoginAttempts = failedLoginAttempts,
-            LastLoginAt = this.LastLoginAt
+            LastLoginAt = LastLoginAt
         };
     }
 
@@ -96,9 +96,9 @@ public class User : BaseEntity
     {
         return new User(Email, PasswordHash, IsEnabled)
         {
-            Id = this.Id,
-            CreatedAt = this.CreatedAt,
-            UpdatedAt = this.UpdatedAt,
+            Id = Id,
+            CreatedAt = CreatedAt,
+            UpdatedAt = UpdatedAt,
             FailedLoginAttempts = 0, // Reset failed attempts on successful login
             LastLoginAt = lastLoginAt
         };

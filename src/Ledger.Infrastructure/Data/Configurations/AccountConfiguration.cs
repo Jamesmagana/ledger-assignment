@@ -19,7 +19,10 @@ public class AccountConfiguration : IEntityTypeConfiguration<Account>
             .HasMaxLength(200);
 
         // Case-insensitive unique index on Name
-        // This will be implemented in migration as: CREATE UNIQUE INDEX IX_Accounts_Name_Normalized ON "Accounts" (UPPER("Name"))
+        // NOTE: EF Core's HasIndex creates a case-sensitive index, but the migration
+        // uses raw SQL to create a case-insensitive index: CREATE UNIQUE INDEX IX_Accounts_Name_Normalized ON "Accounts" (UPPER("Name"))
+        // This ensures case-insensitive uniqueness at the database level.
+        // The application layer also enforces this via case-insensitive lookup in AccountService.
         builder.HasIndex(e => e.Name)
             .HasDatabaseName("IX_Accounts_Name_Normalized")
             .IsUnique();

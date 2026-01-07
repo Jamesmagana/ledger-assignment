@@ -98,7 +98,7 @@ public class AuditLoggingInterceptor : SaveChangesInterceptor
             else if (entry.State == EntityState.Modified)
             {
                 action = "UPDATE";
-                
+
                 // Get original values (before change)
                 var originalValues = new Dictionary<string, object?>();
                 foreach (var property in entry.Properties)

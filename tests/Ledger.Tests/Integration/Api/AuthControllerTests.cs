@@ -1,18 +1,18 @@
+using System.Net;
+using System.Net.Http.Headers;
+using System.Net.Http.Json;
 using Ledger.Api.DTOs.Auth;
 using Ledger.Api.DTOs.Users;
-using Ledger.Infrastructure.Data;
-using Ledger.Infrastructure.Repositories;
 using Ledger.Application.Repositories;
 using Ledger.Application.Services;
+using Ledger.Infrastructure.Data;
+using Ledger.Infrastructure.Repositories;
 using Ledger.Tests.Helpers;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using System.Net;
-using System.Net.Http.Headers;
-using System.Net.Http.Json;
 using Testcontainers.PostgreSql;
 
 namespace Ledger.Tests.Integration.Api;
@@ -327,7 +327,7 @@ public class AuthControllerTests : IAsyncLifetime
 
         Assert.NotNull(invalidEmailProblem);
         Assert.NotNull(invalidPasswordProblem);
-        
+
         // Both should have same error message (no user enumeration)
         Assert.Equal(invalidEmailProblem.Detail, invalidPasswordProblem.Detail);
         Assert.Equal("INVALID_CREDENTIALS", invalidEmailProblem.Extensions?["reasonCode"]?.ToString());

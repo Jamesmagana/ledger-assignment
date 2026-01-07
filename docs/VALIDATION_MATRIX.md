@@ -33,6 +33,9 @@ JOURNAL ENTRY POSTING
 | Atomic write             | DB        | Transaction                  | N/A                    | Integration         | ✅ Implemented |
 | Idempotency (same hash)  | App + DB  | Hash comparison + unique index | IDEMPOTENCY_REPLAY (200 OK) | Integration | ✅ Implemented |
 | Idempotency (diff hash)  | App + DB  | Hash comparison + unique index | DUPLICATE_EXTERNAL_ID (409) | Integration | ✅ Implemented |
+| Idempotency (diff amount)| App + DB  | Hash comparison + unique index | DUPLICATE_EXTERNAL_ID (409) | Integration | ✅ Implemented |
+| Idempotency (diff accounts)| App + DB  | Hash comparison + unique index | DUPLICATE_EXTERNAL_ID (409) | Integration | ✅ Implemented |
+| Idempotency (diff line count)| App + DB  | Hash comparison + unique index | DUPLICATE_EXTERNAL_ID (409) | Integration | ✅ Implemented |
 | Concurrency safety       | DB        | Unique constraint + fetch-on-conflict | N/A | Integration | ✅ Implemented |
 | Request hash canonical   | App       | SHA-256 of sorted JSON       | N/A                    | Unit                | ✅ Implemented |
 
@@ -136,25 +139,29 @@ AUDIT LOGGING
 DATABASE CONSTRAINTS (BACKSTOP)
 ==================================================
 
-| Rule                              | Layer | Enforcement                  | Test         |
-|-----------------------------------|-------|------------------------------|--------------|
-| Account name case-insensitive unique| DB   | Unique index (UPPER(Name))   | Integration  |
-| JournalEntry ExternalId unique    | DB    | Unique partial index          | Integration  |
-| Line Amount > 0                   | DB    | CHECK constraint              | Integration  |
-| Money precision numeric(20,4)     | DB    | Column type                   | Integration  |
-| No cascade deletes               | DB    | Foreign key (Restrict)         | Integration  |
-| UTC timestamps                    | DB    | Column type (timestamptz)     | Integration  |
+| Rule                              | Layer | Enforcement                  | Test         | Status      |
+|-----------------------------------|-------|------------------------------|--------------|-------------|
+| Account name case-insensitive unique| DB   | Unique index (UPPER(Name))   | Integration  | ✅ Implemented |
+| JournalEntry ExternalId unique    | DB    | Unique partial index          | Integration  | ✅ Implemented |
+| Line Amount > 0                   | DB    | CHECK constraint              | Integration  | ✅ Implemented |
+| Line Amount = 0 (violation)      | DB    | CHECK constraint              | Integration  | ✅ Implemented |
+| Money precision numeric(20,4)     | DB    | Column type                   | Integration  | ✅ Implemented |
+| No cascade deletes               | DB    | Foreign key (Restrict)         | Integration  | ✅ Implemented |
+| UTC timestamps                    | DB    | Column type (timestamptz)     | Integration  | ✅ Implemented |
 
 ==================================================
 GLOBAL RULES
 ==================================================
 
-| Rule                       | Layer | Enforcement   | Test |
-|----------------------------|-------|---------------|------|
-| RFC7807 ProblemDetails     | API   | Middleware    | Unit |
-| CorrelationId included     | API   | Middleware    | Unit |
-| UTC timestamps             | App   | Guard         | Unit |
-| No deletes for ledger      | API   | No endpoints  | N/A  |
+| Rule                       | Layer | Enforcement   | Test         | Status      |
+|----------------------------|-------|---------------|--------------|-------------|
+| RFC7807 ProblemDetails     | API   | Middleware    | Integration  | ✅ Implemented |
+| CorrelationId included     | API   | Middleware    | Integration  | ✅ Implemented |
+| CorrelationId in headers   | API   | Middleware    | Integration  | ✅ Implemented |
+| CorrelationId in errors    | API   | Middleware    | Integration  | ✅ Implemented |
+| CorrelationId in audit     | API   | Interceptor   | Integration  | ✅ Implemented |
+| UTC timestamps             | App   | Guard         | Unit         | ✅ Implemented |
+| No deletes for ledger      | API   | No endpoints  | N/A          | ✅ Implemented |
 
 ==================================================
 END OF MATRIX

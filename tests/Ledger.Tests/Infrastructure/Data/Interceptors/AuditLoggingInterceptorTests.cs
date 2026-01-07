@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using Ledger.Application.Repositories;
 using Ledger.Application.Services;
 using Ledger.Domain.Entities;
@@ -9,7 +10,6 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Moq;
-using System.Security.Claims;
 using Xunit;
 
 namespace Ledger.Tests.Infrastructure.Data.Interceptors;
@@ -176,7 +176,7 @@ public class AuditLoggingInterceptorTests
             It.IsAny<Guid>(),
             It.IsAny<string>(),
             It.IsAny<object?>(),
-            It.Is<object>(obj => 
+            It.Is<object>(obj =>
             {
                 var json = System.Text.Json.JsonSerializer.Serialize(obj);
                 return !json.Contains("PasswordHash") && !json.Contains("passwordHash");

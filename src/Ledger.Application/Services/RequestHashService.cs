@@ -1,7 +1,7 @@
-using Ledger.Application.Models;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using Ledger.Application.Models;
 
 namespace Ledger.Application.Services;
 
@@ -21,11 +21,11 @@ public class RequestHashService : IRequestHashService
     {
         // Create canonical representation
         var canonical = CreateCanonicalRepresentation(request);
-        
+
         // Compute SHA-256 hash
         using var sha256 = SHA256.Create();
         var hashBytes = sha256.ComputeHash(Encoding.UTF8.GetBytes(canonical));
-        
+
         // Convert to hex string (64 characters)
         return Convert.ToHexString(hashBytes).ToLowerInvariant();
     }

@@ -32,14 +32,14 @@ public class AuthController : ControllerBase
     public async Task<IActionResult> Login([FromBody] LoginRequest request, CancellationToken cancellationToken)
     {
         var result = await _authenticationService.LoginAsync(request.Email, request.Password, cancellationToken);
-        
+
         var response = new LoginResponse
         {
             Token = result.Token,
             UserId = result.UserId,
             Email = result.Email
         };
-        
+
         return Ok(response);
     }
 }

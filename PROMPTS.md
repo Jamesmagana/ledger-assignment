@@ -48,8 +48,8 @@ No domain entities or migrations yet."
 **Decisions:**
 - Docker Compose for local PostgreSQL 16 (port 5432)
   - Database: ledger
-  - User: ledger_user
-  - Password: ledger_password (development only)
+  - User: postgres
+  - Password: admin (development only)
   - Health check configured
   - Data volume for persistence
 - EF Core 8.0.11 with Npgsql.EntityFrameworkCore.PostgreSQL 8.0.11
@@ -569,21 +569,130 @@ Update VALIDATION_MATRIX.md and PROMPTS.md."
 # Phase 9 – Audit Logging (Financial Compliance)
 
 **Prompt:**  
-"Design an audit logging system capturing old and new values  
-for all financial and security-sensitive operations."
+"Add compliance-grade audit logging with EF Core.
+
+Requirements:
+- Append-only AuditLogs table (immutable)
+- Capture: entity name, entity id, action, old values, new values, performedBy userId, correlationId, timestamp UTC
+- Old/New stored as JSON
+- Exclude sensitive fields (passwords/hashes/secrets)
+- Implement via EF Core SaveChanges interceptor or Unit of Work hook
+- Audit logs written in same transaction where applicable
+- If audit logging fails, transaction must fail
+
+Audit must cover:
+- Account create/update
+- Journal entry posting
+- User creation
+- Login
+
+Add tests and update PROMPTS.md and VALIDATION_MATRIX.md."
 
 **Decisions:**
-- Append-only audit log table (immutable)
-- Audit entries capture:
-  - Entity name and ID
-  - Action (CREATE, UPDATE, LOGIN, POST)
-  - OldValues and NewValues (JSON)
-  - PerformedBy user
-  - CorrelationId
-  - UTC timestamp
-- Audit logs written via EF Core interception or Unit of Work
-- Audit logging included in the same transaction where applicable
-- Sensitive fields (passwords, secrets) explicitly excluded
-- Audit logging failures cause transaction failure (financial safety)
+- **AuditLog Domain Entity:**
+  - Created `AuditLog` entity with immutable properties (init-only)
+  - Properties: Id, EntityName, EntityId, Action, OldValues (JSON), NewValues (JSON), PerformedBy (nullable), CorrelationId, Timestamp
+  - Constructor validates required fields
+- **EF Core Configuration:**
+  - Created `AuditLogConfiguration` with JSONB columns for OldValues/NewValues
+  - Timestamp with UTC timezone and default
+  - Table comment indicating append-only behavior
+- **Database Migration:**
+  - Generated `AddAuditLogsTable` migration
+  - JSONB columns for efficient JSON storage and querying
+- **Sensitive Field Exclusion:**
+  - Created `SensitiveFieldExcluder` utility class
+  - Excludes: PasswordHash, Password, Secret, SecretKey, Token, ApiKey, AccessToken, RefreshToken
+  - Case-insensitive field name matching
+  - Serializes to JSON with camelCase naming
+- **User Context Service:**
+  - Created `IUserContextService` and `UserContextService`
+  - Extracts userId from JWT claims (ClaimTypes.NameIdentifier or "sub")
+  - Returns null if no authenticated user
+- **Audit Log Service:**
+  - Created `IAuditLogService` and `AuditLogService`
+  - `LogEntityChangeAsync`: Serializes old/new values (excluding sensitive fields) and creates audit log entry
+- **EF Core Interceptor:**
+  - Created `AuditLoggingInterceptor` extending `SaveChangesInterceptor`
+  - Captures Added and Modified entity states
+  - Skips AuditLog entities (prevents recursion)
+  - Extracts correlationId from HttpContext.Items
+  - Gets performedBy from UserContextService
+  - Creates audit log entries directly in same DbContext (same transaction)
+  - Serializes old values (for Modified) and new values (for Added/Modified)
+- **Login Audit:**
+  - `AuthenticationService` explicitly logs LOGIN action after successful authentication
+  - Captures LastLoginAt timestamp in newValues
+- **Dependency Injection:**
+  - Registered `IHttpContextAccessor`, `IUserContextService`, `IAuditLogRepository`, `IAuditLogService`
+  - Registered interceptor in DbContext configuration
+- **Unit Tests:**
+  - `SensitiveFieldExcluderTests`: Excludes sensitive fields, preserves non-sensitive, case-insensitive matching
+  - `UserContextServiceTests`: Extracts userId from JWT claims, handles missing context/claims
+- **Integration Tests:**
+  - `AuditLoggingTests`: Account create/update, journal entry posting, user creation (password exclusion), login, correlationId, userId, transaction safety
+  - Tests verify audit logs are created, sensitive fields excluded, correlationId captured, performedBy set correctly
+- **Transaction Safety:**
+  - Audit logs added to same DbContext before SaveChanges
+  - If audit logging fails, entire transaction rolls back
+  - No separate transaction for audit logs (ensures atomicity)
+
+# Phase 10 – Production Readiness Hardening
+
+**Prompt:**  
+"Perform production readiness hardening:
+- Add README with setup and usage
+- Validate all constraints and error formats
+- Ensure test coverage for all major rules
+- Add any missing edge-case tests (duplicates, idempotency mismatch, audit coverage)
+- Final lint/format cleanup
+Update PROMPTS.md and VALIDATION_MATRIX.md to reflect final state."
+
+**Decisions:**
+- **README.md Created:**
+  - Comprehensive setup instructions (local dev, migrations, authentication)
+  - Example API requests with curl commands
+  - Configuration guide (connection strings, JWT settings, environment variables)
+  - Architecture overview (Clean Architecture layers, design decisions)
+  - Troubleshooting section
+  - Security considerations
+- **Database Constraint Tests:**
+  - Created `DatabaseConstraintTests` integration test class
+  - Tests verify database-level enforcement:
+    - Negative amount violates CHECK constraint
+    - Zero amount violates CHECK constraint
+    - Duplicate account name (case-insensitive) violates unique index
+    - Duplicate externalId violates unique partial index
+  - Tests bypass application validation to verify database backstop
+- **Idempotency Mismatch Tests:**
+  - Created `IdempotencyMismatchTests` integration test class
+  - Tests verify 409 Conflict when same externalId used with different payloads:
+    - Different amounts
+    - Different accounts
+    - Different line counts
+  - Tests verify 200 OK replay when same externalId + same payload
+- **CorrelationId Propagation Tests:**
+  - Created `CorrelationIdPropagationTests` integration test class
+  - Tests verify CorrelationId:
+    - Included in success response headers
+    - Included in error responses (ProblemDetails)
+    - Generated if not provided
+    - Captured in audit logs
+    - Included in validation error responses
+- **AccountConfiguration Documentation:**
+  - Added comment explaining case-insensitive unique index implementation
+  - Notes that migration uses raw SQL (UPPER) while EF Core config uses standard index
+  - Documents that application layer also enforces case-insensitive uniqueness
+- **Test Coverage Verification:**
+  - All major validation rules have integration tests
+  - Database constraints tested at database level
+  - Idempotency scenarios fully covered
+  - Audit logging comprehensively tested
+  - CorrelationId propagation verified end-to-end
+  - Authentication/authorization tested for all endpoints
+- **Documentation Updates:**
+  - VALIDATION_MATRIX.md reviewed and verified complete
+  - PROMPTS.md updated with Phase 10 details
+  - All validation rules marked with test coverage status
 
 # End of Log

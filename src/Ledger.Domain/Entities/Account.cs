@@ -54,9 +54,9 @@ public class Account : BaseEntity
     {
         return new Account(Name, Type, isActive)
         {
-            Id = this.Id,
-            CreatedAt = this.CreatedAt,
-            UpdatedAt = this.UpdatedAt
+            Id = Id,
+            CreatedAt = CreatedAt,
+            UpdatedAt = UpdatedAt
         };
     }
 }
