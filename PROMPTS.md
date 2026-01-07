@@ -72,15 +72,51 @@ No domain entities or migrations yet."
 # Phase 2 – Domain & Persistence
 
 **Prompt:**  
-"Model Accounts, JournalEntries, and JournalEntryLines with strict  
-ledger invariants and EF Core mappings."
+"Design and implement Domain entities: Account, JournalEntry, JournalEntryLine.  
+Rules: No EF attributes in Domain, Enums for AccountType and LineDirection,  
+Immutability expectations documented. Add basic domain invariants where appropriate,  
+but keep cross-entity validation for Application layer."
 
 **Decisions:**
-- JournalEntry modeled as immutable header + lines
-- Domain entities free of EF attributes
-- DB-level uniqueness and CHECK constraints used as integrity backstop
-- No cascade deletes on ledger data
-- UTC timestamps enforced at all layers
+- **Enums Created:**
+  - `AccountType`: Asset, Liability, Equity, Revenue, Expense (explicit integer values)
+  - `LineDirection`: Debit, Credit (explicit integer values)
+- **BaseEntity Pattern:**
+  - Abstract base class with `Id` (Guid), `CreatedAt` (DateTime), `UpdatedAt` (DateTime)
+  - Uses `init` accessors to enforce immutability for creation-time fields
+- **Account Entity:**
+  - Properties: Name (string), Type (AccountType), IsActive (bool)
+  - Inherits from BaseEntity
+  - Domain invariant: Name cannot be null or empty (enforced in constructor)
+  - `WithIsActive()` method for creating updated instance (immutability pattern)
+  - Name uniqueness (case-insensitive) enforced at DB level
+  - Type immutability after first usage enforced in Application layer
+- **JournalEntry Entity:**
+  - Properties: ExternalId (string?), RequestHash (string), PostedAt (DateTime)
+  - Inherits from BaseEntity
+  - Domain invariant: RequestHash cannot be null or empty (enforced in constructor)
+  - **IMMUTABLE after posting** (when PostedAt is set)
+  - Corrections via reversing entries only
+  - ExternalId nullable for idempotency (unique at DB level when provided)
+  - RequestHash used for payload mismatch detection
+- **JournalEntryLine Entity:**
+  - Properties: Id (Guid), JournalEntryId (Guid), AccountId (Guid), Direction (LineDirection), Amount (decimal)
+  - Does not inherit from BaseEntity (lines don't need separate timestamps)
+  - Domain invariants enforced in constructor:
+    - Amount MUST be > 0
+    - JournalEntryId and AccountId cannot be empty
+    - Direction is exclusive (Debit OR Credit)
+  - Immutable once created (part of immutable JournalEntry)
+  - Cross-entity validation (debits == credits, account exists/active) in Application layer
+- **Clean Architecture Compliance:**
+  - No EF Core attributes in Domain entities
+  - No navigation properties in Domain (Infrastructure responsibility)
+  - No database-specific types or dependencies
+  - Pure domain model with basic invariants only
+- **Immutability Documentation:**
+  - XML documentation comments on all entities
+  - Immutability expectations clearly documented
+  - Business rules (e.g., type change prevention) documented but enforced in Application layer
 
 # Phase 3 – Accounts API
 
