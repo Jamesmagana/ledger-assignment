@@ -1,0 +1,834 @@
+{
+	"info": {
+		"_postman_id": "ledger-api-collection",
+		"name": "Ledger API",
+		"description": "Complete API collection for the Ledger Financial Backbone System",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "Authentication",
+			"item": [
+				{
+					"name": "Register User",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 201) {",
+									"    const response = pm.response.json();",
+									"    pm.environment.set(\"userId\", response.id);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"email\": \"testuser@example.com\",\n    \"password\": \"TestPassword123!\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/users",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"users"
+							]
+						},
+						"description": "Creates a new user account. This endpoint is public (no authentication required)."
+					},
+					"response": []
+				},
+				{
+					"name": "Login",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"    const response = pm.response.json();",
+									"    pm.environment.set(\"authToken\", response.token);",
+									"    pm.environment.set(\"userId\", response.userId);",
+									"    pm.environment.set(\"userEmail\", response.email);",
+									"    console.log(\"Token saved to environment\");",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"email\": \"testuser@example.com\",\n    \"password\": \"TestPassword123!\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/auth/login",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"auth",
+								"login"
+							]
+						},
+						"description": "Authenticates a user and returns a JWT token. This endpoint is public."
+					},
+					"response": []
+				}
+			],
+			"description": "Authentication endpoints for user registration and login"
+		},
+		{
+			"name": "Accounts",
+			"item": [
+				{
+					"name": "Create Account - Cash",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 201) {",
+									"    const response = pm.response.json();",
+									"    pm.environment.set(\"cashAccountId\", response.id);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{authToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"Cash\",\n    \"type\": 1,\n    \"isActive\": true\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/accounts",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"accounts"
+							]
+						},
+						"description": "Creates a Cash account (Asset type = 1)"
+					},
+					"response": []
+				},
+				{
+					"name": "Create Account - Accounts Receivable",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 201) {",
+									"    const response = pm.response.json();",
+									"    pm.environment.set(\"arAccountId\", response.id);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{authToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"Accounts Receivable\",\n    \"type\": 1,\n    \"isActive\": true\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/accounts",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"accounts"
+							]
+						},
+						"description": "Creates an Accounts Receivable account (Asset type = 1)"
+					},
+					"response": []
+				},
+				{
+					"name": "Create Account - Accounts Payable",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 201) {",
+									"    const response = pm.response.json();",
+									"    pm.environment.set(\"apAccountId\", response.id);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{authToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"Accounts Payable\",\n    \"type\": 2,\n    \"isActive\": true\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/accounts",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"accounts"
+							]
+						},
+						"description": "Creates an Accounts Payable account (Liability type = 2)"
+					},
+					"response": []
+				},
+				{
+					"name": "Create Account - Sales Revenue",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 201) {",
+									"    const response = pm.response.json();",
+									"    pm.environment.set(\"salesAccountId\", response.id);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{authToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"Sales Revenue\",\n    \"type\": 4,\n    \"isActive\": true\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/accounts",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"accounts"
+							]
+						},
+						"description": "Creates a Sales Revenue account (Revenue type = 4)"
+					},
+					"response": []
+				},
+				{
+					"name": "Create Account - Rent Expense",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 201) {",
+									"    const response = pm.response.json();",
+									"    pm.environment.set(\"rentAccountId\", response.id);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{authToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"Rent Expense\",\n    \"type\": 5,\n    \"isActive\": true\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/accounts",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"accounts"
+							]
+						},
+						"description": "Creates a Rent Expense account (Expense type = 5)"
+					},
+					"response": []
+				},
+				{
+					"name": "Get All Accounts",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{authToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/accounts",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"accounts"
+							]
+						},
+						"description": "Retrieves all accounts"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Account By ID",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{authToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/accounts/{{cashAccountId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"accounts",
+								"{{cashAccountId}}"
+							]
+						},
+						"description": "Retrieves a specific account by ID"
+					},
+					"response": []
+				},
+				{
+					"name": "Update Account (Deactivate)",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{authToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"isActive\": false\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/accounts/{{cashAccountId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"accounts",
+								"{{cashAccountId}}"
+							]
+						},
+						"description": "Updates an account's IsActive status"
+					},
+					"response": []
+				}
+			],
+			"description": "Account management endpoints. Account types: 1=Asset, 2=Liability, 3=Equity, 4=Revenue, 5=Expense"
+		},
+		{
+			"name": "Journal Entries",
+			"item": [
+				{
+					"name": "Post Journal Entry - Sale Transaction",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 201 || pm.response.code === 200) {",
+									"    const response = pm.response.json();",
+									"    pm.environment.set(\"journalEntryId\", response.id);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{authToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"externalId\": \"SALE-001\",\n    \"lines\": [\n        {\n            \"accountId\": \"{{arAccountId}}\",\n            \"direction\": 1,\n            \"amount\": 1000.00\n        },\n        {\n            \"accountId\": \"{{salesAccountId}}\",\n            \"direction\": 2,\n            \"amount\": 1000.00\n        }\n    ]\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/journalentries",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"journalentries"
+							]
+						},
+						"description": "Posts a journal entry for a sale transaction. Debit AR, Credit Sales. Direction: 1=Debit, 2=Credit. Must be double-entry balanced."
+					},
+					"response": []
+				},
+				{
+					"name": "Post Journal Entry - Cash Sale",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{authToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"externalId\": \"CASH-SALE-001\",\n    \"lines\": [\n        {\n            \"accountId\": \"{{cashAccountId}}\",\n            \"direction\": 1,\n            \"amount\": 500.00\n        },\n        {\n            \"accountId\": \"{{salesAccountId}}\",\n            \"direction\": 2,\n            \"amount\": 500.00\n        }\n    ]\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/journalentries",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"journalentries"
+							]
+						},
+						"description": "Posts a journal entry for a cash sale. Debit Cash, Credit Sales."
+					},
+					"response": []
+				},
+				{
+					"name": "Post Journal Entry - Rent Payment",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{authToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"externalId\": \"RENT-001\",\n    \"lines\": [\n        {\n            \"accountId\": \"{{rentAccountId}}\",\n            \"direction\": 1,\n            \"amount\": 1200.00\n        },\n        {\n            \"accountId\": \"{{cashAccountId}}\",\n            \"direction\": 2,\n            \"amount\": 1200.00\n        }\n    ]\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/journalentries",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"journalentries"
+							]
+						},
+						"description": "Posts a journal entry for rent payment. Debit Rent Expense, Credit Cash."
+					},
+					"response": []
+				},
+				{
+					"name": "Post Journal Entry - Multi-Line (Complex)",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{authToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"externalId\": \"COMPLEX-001\",\n    \"lines\": [\n        {\n            \"accountId\": \"{{cashAccountId}}\",\n            \"direction\": 1,\n            \"amount\": 2000.00\n        },\n        {\n            \"accountId\": \"{{arAccountId}}\",\n            \"direction\": 1,\n            \"amount\": 1500.00\n        },\n        {\n            \"accountId\": \"{{salesAccountId}}\",\n            \"direction\": 2,\n            \"amount\": 3500.00\n        }\n    ]\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/journalentries",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"journalentries"
+							]
+						},
+						"description": "Posts a complex multi-line journal entry. Total debits (3500) = Total credits (3500)."
+					},
+					"response": []
+				},
+				{
+					"name": "Post Journal Entry - Idempotent (Same ExternalId)",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{authToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"externalId\": \"SALE-001\",\n    \"lines\": [\n        {\n            \"accountId\": \"{{arAccountId}}\",\n            \"direction\": 1,\n            \"amount\": 1000.00\n        },\n        {\n            \"accountId\": \"{{salesAccountId}}\",\n            \"direction\": 2,\n            \"amount\": 1000.00\n        }\n    ]\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/journalentries",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"journalentries"
+							]
+						},
+						"description": "Tests idempotency - same externalId should return 200 OK with existing entry (not create duplicate)"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Journal Entry By ID",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{authToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/journalentries/{{journalEntryId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"journalentries",
+								"{{journalEntryId}}"
+							]
+						},
+						"description": "Retrieves a specific journal entry by ID"
+					},
+					"response": []
+				}
+			],
+			"description": "Journal Entry endpoints. All entries must be double-entry balanced (total debits = total credits). Direction: 1=Debit, 2=Credit"
+		},
+		{
+			"name": "Reports",
+			"item": [
+				{
+					"name": "Get Trial Balance",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{authToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/reports/trial-balance",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"reports",
+								"trial-balance"
+							]
+						},
+						"description": "Gets the trial balance for all accounts. Total net should equal zero."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Trial Balance (As Of Date)",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{authToken}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/reports/trial-balance?asOf=2024-12-31T23:59:59Z",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"reports",
+								"trial-balance"
+							],
+							"query": [
+								{
+									"key": "asOf",
+									"value": "2024-12-31T23:59:59Z",
+									"description": "Optional date filter (UTC)"
+								}
+							]
+						},
+						"description": "Gets the trial balance as of a specific date"
+					},
+					"response": []
+				}
+			],
+			"description": "Financial reporting endpoints"
+		}
+	],
+	"variable": [
+		{
+			"key": "baseUrl",
+			"value": "http://localhost:5169",
+			"type": "string"
+		},
+		{
+			"key": "authToken",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "userId",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "userEmail",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "cashAccountId",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "arAccountId",
+			"value": "",
+			"type": "string"
+		},
+			{
+			"key": "apAccountId",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "salesAccountId",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "rentAccountId",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "journalEntryId",
+			"value": "",
+			"type": "string"
+		}
+	]
+}
+

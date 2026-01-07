@@ -23,35 +23,48 @@ public class TrialBalanceRepository : ITrialBalanceRepository
         DateTime? asOf,
         CancellationToken cancellationToken = default)
     {
-        // Use LINQ with LEFT JOIN to include all accounts (even zero-activity)
-        // First, get all accounts
-        var accountsQuery = _context.Accounts.AsQueryable();
+        // Get all accounts first
+        var accounts = await _context.Accounts
+            .AsNoTracking()
+            .Select(a => new { a.Id, a.Name, a.Type })
+            .ToListAsync(cancellationToken);
 
-        // Get journal entry lines filtered by asOf if provided
+        // Get journal entry lines filtered by asOf if provided, grouped by account
         var linesQuery = from line in _context.JournalEntryLines
                          join entry in _context.JournalEntries on line.JournalEntryId equals entry.Id
-                         where asOf == null || entry.PostedAt <= asOf
-                         select line;
+                         where asOf == null || entry.PostedAt <= asOf.Value
+                         group new { line.Direction, line.Amount } by line.AccountId into g
+                         select new
+                         {
+                             AccountId = g.Key,
+                             TotalDebits = g.Where(x => x.Direction == LineDirection.Debit).Sum(x => x.Amount),
+                             TotalCredits = g.Where(x => x.Direction == LineDirection.Credit).Sum(x => x.Amount)
+                         };
 
-        // Join accounts with lines (LEFT JOIN)
-        var query = from account in accountsQuery
-                    join line in linesQuery on account.Id equals line.AccountId into accountLines
-                    from line in accountLines.DefaultIfEmpty()
-                    group new { line, account } by new { account.Id, account.Name, account.Type } into g
-                    select new TrialBalanceItem(
-                        g.Key.Id,
-                        g.Key.Name,
-                        g.Key.Type,
-                        g.Sum(x => x.line != null && x.line.Direction == LineDirection.Debit ? x.line.Amount : 0),
-                        g.Sum(x => x.line != null && x.line.Direction == LineDirection.Credit ? x.line.Amount : 0),
-                        g.Sum(x => x.line != null && x.line.Direction == LineDirection.Debit ? x.line.Amount : 0) -
-                        g.Sum(x => x.line != null && x.line.Direction == LineDirection.Credit ? x.line.Amount : 0)
-                    );
-
-        var items = await query
-            .OrderBy(item => item.AccountName)
+        var accountBalances = await linesQuery
             .AsNoTracking()
             .ToListAsync(cancellationToken);
+
+        // Create a dictionary for quick lookup
+        var balanceDict = accountBalances.ToDictionary(b => b.AccountId);
+
+        // Build trial balance items - include all accounts (zero-activity accounts will have 0 balances)
+        var items = accounts.Select(account =>
+        {
+            var balance = balanceDict.GetValueOrDefault(account.Id);
+            var totalDebits = balance?.TotalDebits ?? 0;
+            var totalCredits = balance?.TotalCredits ?? 0;
+            return new TrialBalanceItem(
+                account.Id,
+                account.Name,
+                account.Type,
+                totalDebits,
+                totalCredits,
+                totalDebits - totalCredits
+            );
+        })
+        .OrderBy(item => item.AccountName)
+        .ToList();
 
         return items;
     }
