@@ -1,5 +1,6 @@
 using Ledger.Api.DTOs.Accounts;
 using Ledger.Application.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Ledger.Api.Controllers;
@@ -7,6 +8,7 @@ namespace Ledger.Api.Controllers;
 /// <summary>
 /// Controller for Account management operations.
 /// </summary>
+[Authorize]
 [ApiController]
 [Route("api/[controller]")]
 public class AccountsController : ControllerBase

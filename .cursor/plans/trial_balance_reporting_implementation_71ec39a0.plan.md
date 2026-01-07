@@ -382,4 +382,3 @@ if (totalNet != 0)
 - **Aggregation:** Use COALESCE to handle NULL values (zero-activity accounts)
 - **Balance Validation:** TotalNet must equal 0 (enforced in service)
 - **No Duplicates:** GROUP BY ensures each account appears once
-- **asOf Filtering:** Filter by PostedAt <= asOf (include entries up to and including asOf)

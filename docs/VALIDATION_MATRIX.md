@@ -63,8 +63,18 @@ TRIAL BALANCE REPORT
 JWT AUTHENTICATION (SIMPLE)
 ==================================================
 
-| Rule                              | Layer | Enforcement            | Error Code     | Test         |
-|-----------------------------------|-------|------------------------|----------------|--------------|
+| Rule                              | Layer | Enforcement            | Error Code     | Test         | Status       |
+|-----------------------------------|-------|------------------------|----------------|--------------|--------------|
+| JWT required for all endpoints    | API   | Auth middleware        | UNAUTHORIZED   | Integration  | ✅ Implemented |
+| Missing token rejected            | API   | JWT handler            | UNAUTHORIZED   | Integration  | ✅ Implemented |
+| Invalid signature rejected        | API   | JWT validation         | UNAUTHORIZED   | Integration  | ✅ Implemented |
+| Expired token rejected            | API   | JWT validation         | UNAUTHORIZED   | Integration  | ✅ Implemented |
+| Invalid issuer rejected           | API   | JWT validation         | UNAUTHORIZED   | Integration  | ✅ Implemented |
+| Invalid audience rejected         | API   | JWT validation         | UNAUTHORIZED   | Integration  | ✅ Implemented |
+| Clock skew configured             | API   | TokenValidationParams  | N/A            | Integration  | ✅ Implemented |
+| 401 returns ProblemDetails        | API   | Challenge event        | UNAUTHORIZED   | Integration  | ✅ Implemented |
+| CorrelationId on auth failures    | API   | Middleware             | N/A            | Integration  | ✅ Implemented |
+| Health check public (no auth)      | API   | No [Authorize]         | N/A            | Integration  | ✅ Implemented |
 | JWT required for all endpoints    | API   | Auth middleware        | UNAUTHORIZED   | Integration  |
 | Missing token rejected            | API   | JWT handler            | UNAUTHORIZED   | Integration  |
 | Invalid signature rejected        | API   | JWT validation         | UNAUTHORIZED   | Unit         |

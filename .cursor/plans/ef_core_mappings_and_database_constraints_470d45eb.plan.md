@@ -30,7 +30,7 @@ todos:
       - generate-migration
   - id: update-prompts
     content: Update PROMPTS.md Phase 2 with EF Core configuration and constraint decisions
-    status: pending
+    status: completed
     dependencies:
       - generate-migration
   - id: update-validation-matrix
@@ -301,4 +301,3 @@ docs/
 - UTC timestamps
 
 4. Migration applies to database successfully
-5. Constraints are documented

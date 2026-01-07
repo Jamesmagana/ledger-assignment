@@ -3,6 +3,7 @@ using Ledger.Application.Exceptions;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
 using System.Net;
 using System.Text.Json;
 
@@ -118,6 +119,41 @@ public class ExceptionHandlingMiddleware
                 problem.WithReasonCode("UNAUTHORIZED");
                 break;
 
+            case SecurityTokenExpiredException:
+                problem.Status = (int)HttpStatusCode.Unauthorized;
+                problem.Title = "Unauthorized";
+                problem.Detail = "The provided token has expired";
+                problem.WithReasonCode("TOKEN_EXPIRED");
+                break;
+
+            case SecurityTokenInvalidSignatureException:
+                problem.Status = (int)HttpStatusCode.Unauthorized;
+                problem.Title = "Unauthorized";
+                problem.Detail = "The provided token signature is invalid";
+                problem.WithReasonCode("TOKEN_INVALID_SIGNATURE");
+                break;
+
+            case SecurityTokenInvalidIssuerException:
+                problem.Status = (int)HttpStatusCode.Unauthorized;
+                problem.Title = "Unauthorized";
+                problem.Detail = "The provided token issuer is invalid";
+                problem.WithReasonCode("TOKEN_INVALID_ISSUER");
+                break;
+
+            case SecurityTokenInvalidAudienceException:
+                problem.Status = (int)HttpStatusCode.Unauthorized;
+                problem.Title = "Unauthorized";
+                problem.Detail = "The provided token audience is invalid";
+                problem.WithReasonCode("TOKEN_INVALID_AUDIENCE");
+                break;
+
+            case SecurityTokenException:
+                problem.Status = (int)HttpStatusCode.Unauthorized;
+                problem.Title = "Unauthorized";
+                problem.Detail = "The provided token is invalid";
+                problem.WithReasonCode("TOKEN_INVALID");
+                break;
+
             case DbUpdateException dbEx:
                 var (status, reasonCode, detail) = MapDatabaseException(dbEx);
                 problem.Status = status;
@@ -186,6 +222,7 @@ public class ExceptionHandlingMiddleware
             ConflictException => "https://tools.ietf.org/html/rfc7231#section-6.5.8",
             UnauthorizedException => "https://tools.ietf.org/html/rfc7235#section-3.1",
             UnauthorizedAccessException => "https://tools.ietf.org/html/rfc7235#section-3.1",
+            SecurityTokenException => "https://tools.ietf.org/html/rfc7235#section-3.1",
             DbUpdateException => "https://tools.ietf.org/html/rfc7231#section-6.6.1",
             _ => "https://tools.ietf.org/html/rfc7231#section-6.6.1"
         };

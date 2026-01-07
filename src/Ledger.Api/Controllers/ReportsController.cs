@@ -1,5 +1,6 @@
 using Ledger.Api.DTOs.Reports;
 using Ledger.Application.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Ledger.Api.Controllers;
@@ -7,6 +8,7 @@ namespace Ledger.Api.Controllers;
 /// <summary>
 /// Controller for financial reporting operations.
 /// </summary>
+[Authorize]
 [ApiController]
 [Route("api/reports")]
 public class ReportsController : ControllerBase

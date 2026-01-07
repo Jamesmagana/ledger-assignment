@@ -276,4 +276,3 @@ tests/Ledger.Tests/
 5. Error format consistent across all endpoints
 6. Tests verify middleware behavior
 7. CorrelationId propagates correctly
-8. Development vs Production error detail levels

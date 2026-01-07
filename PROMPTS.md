@@ -398,26 +398,89 @@ duplicates, idempotency, and reporting correctness."
 - Explicit concurrency tests for idempotency behavior
 - VALIDATION_MATRIX.md maintained as authoritative checklist
 
-# Phase 7 – JWT Authentication (Simple)
+# Phase 6 – JWT Authentication (Simple)
 
 **Prompt:**  
-"Design and implement simple JWT authentication  
-to protect a financial ledger API."
+"Implement simple JWT auth:
+- Add JWT Bearer auth and strict validation
+- Apply [Authorize] globally or at controller level for all endpoints
+- Standardize 401 responses via ProblemDetails with reasonCode=UNAUTHORIZED and correlationId
+Add tests:
+- missing token -> 401
+- invalid token -> 401
+- expired token -> 401
+Update PROMPTS.md and VALIDATION_MATRIX.md.
+Do not add roles or policies."
 
 **Decisions:**
-- JWT Bearer authentication enforced for all endpoints
-- JWT used strictly for authentication (no roles, no permissions)
-- Valid JWT → access allowed
-- Missing or invalid JWT → 401 Unauthorized
-- Strict validation of:
-  - Signature
-  - Issuer
-  - Audience
-  - Expiration
-  - NotBefore
-- No hardcoded secrets; configuration-based keys
-- Clock skew explicitly configured
-- Authentication treated as mandatory security boundary
+- **JWT Configuration:**
+  - Created `JwtSettings` configuration class in `Ledger.Api/Configuration/`
+  - Added JWT settings to `appsettings.json` and `appsettings.Development.json`
+  - Configuration includes: Issuer, Audience, SecretKey, ClockSkewSeconds
+  - SecretKey must be at least 32 characters (validated at startup)
+  - Configuration can be overridden via environment variables (JWT__SECRETKEY, etc.)
+- **JWT Authentication Setup:**
+  - Added `Microsoft.AspNetCore.Authentication.JwtBearer` package (version 8.0.11)
+  - Configured JWT Bearer authentication in `Program.cs`
+  - TokenValidationParameters configured with strict validation:
+    - ValidateIssuer = true
+    - ValidateAudience = true
+    - ValidateLifetime = true
+    - ValidateIssuerSigningKey = true
+    - RequireExpirationTime = true
+    - RequireSignedTokens = true
+    - ClockSkew configurable (default 300 seconds, 60 seconds in development)
+  - Added `UseAuthentication()` middleware before `UseAuthorization()`
+- **Authentication Challenge Response:**
+  - Configured `JwtBearerEvents.OnChallenge` to return RFC7807 ProblemDetails
+  - All 401 responses include:
+    - Status: 401
+    - Title: "Unauthorized"
+    - Detail: "Authentication required. Please provide a valid JWT Bearer token."
+    - reasonCode: "UNAUTHORIZED"
+    - correlationId: from HttpContext.Items
+    - Content-Type: "application/problem+json"
+- **Controller Authorization:**
+  - Added `[Authorize]` attribute to all controllers:
+    - `AccountsController`
+    - `JournalEntriesController`
+    - `ReportsController`
+  - Health check endpoint (`/health`) remains public (no authentication required)
+- **Exception Handling:**
+  - Updated `ExceptionHandlingMiddleware` to handle JWT security token exceptions:
+    - `SecurityTokenExpiredException` → 401 with reasonCode "TOKEN_EXPIRED"
+    - `SecurityTokenInvalidSignatureException` → 401 with reasonCode "TOKEN_INVALID_SIGNATURE"
+    - `SecurityTokenInvalidIssuerException` → 401 with reasonCode "TOKEN_INVALID_ISSUER"
+    - `SecurityTokenInvalidAudienceException` → 401 with reasonCode "TOKEN_INVALID_AUDIENCE"
+    - `SecurityTokenException` (generic) → 401 with reasonCode "TOKEN_INVALID"
+- **Swagger/OpenAPI Configuration:**
+  - Added JWT Bearer security definition to Swagger
+  - Added security requirement to all endpoints
+  - Enables "Authorize" button in Swagger UI for testing with JWT tokens
+- **Test Infrastructure:**
+  - Created `TestJwtTokenHelper` class for generating test tokens:
+    - `GenerateToken()` - valid token
+    - `GenerateExpiredToken()` - expired token
+    - `GenerateTokenWithInvalidSignature()` - wrong secret key
+    - `GenerateTokenWithWrongIssuer()` - wrong issuer
+    - `GenerateTokenWithWrongAudience()` - wrong audience
+    - `GenerateTokenNotYetValid()` - nbf in future
+- **Integration Tests:**
+  - Created `AuthenticationTests.cs` with comprehensive test coverage:
+    - Missing token → 401 Unauthorized
+    - Valid token → 200 OK
+    - Expired token → 401 Unauthorized
+    - Invalid token format → 401 Unauthorized
+    - Invalid signature → 401 Unauthorized
+    - Tests for all endpoints (Accounts, JournalEntries, Reports)
+    - Health check remains public (no auth required)
+    - CorrelationId included in 401 responses
+  - Tests use `WebApplicationFactory` with test JWT configuration
+  - Tests use `Testcontainers.PostgreSql` for database isolation
+- **No Roles or Policies:**
+  - Simple authentication only - no authorization policies
+  - Valid JWT grants access to all endpoints
+  - No role-based or permission-based access control
 
 # Phase 8 – User Management & Login
 
