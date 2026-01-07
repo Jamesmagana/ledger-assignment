@@ -13,3 +13,4 @@ D:\source\assignement3\ledger-assignment\src\Ledger.Application\obj\Debug\net8.0
 D:\source\assignement3\ledger-assignment\src\Ledger.Application\obj\Debug\net8.0\refint\Ledger.Application.dll
 D:\source\assignement3\ledger-assignment\src\Ledger.Application\obj\Debug\net8.0\Ledger.Application.pdb
 D:\source\assignement3\ledger-assignment\src\Ledger.Application\obj\Debug\net8.0\ref\Ledger.Application.dll
+D:\source\assignement3\ledger-assignment\src\Ledger.Application\obj\Debug\net8.0\Ledger.Application.sourcelink.json

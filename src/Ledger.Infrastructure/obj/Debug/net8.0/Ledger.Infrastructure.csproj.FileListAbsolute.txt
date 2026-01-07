@@ -15,3 +15,6 @@ D:\source\assignement3\ledger-assignment\src\Ledger.Infrastructure\obj\Debug\net
 D:\source\assignement3\ledger-assignment\src\Ledger.Infrastructure\obj\Debug\net8.0\refint\Ledger.Infrastructure.dll
 D:\source\assignement3\ledger-assignment\src\Ledger.Infrastructure\obj\Debug\net8.0\Ledger.Infrastructure.pdb
 D:\source\assignement3\ledger-assignment\src\Ledger.Infrastructure\obj\Debug\net8.0\ref\Ledger.Infrastructure.dll
+D:\source\assignement3\ledger-assignment\src\Ledger.Infrastructure\bin\Debug\net8.0\Ledger.Infrastructure.runtimeconfig.json
+D:\source\assignement3\ledger-assignment\src\Ledger.Infrastructure\obj\Debug\net8.0\Ledger.Infrastructure.sourcelink.json
+D:\source\assignement3\ledger-assignment\src\Ledger.Infrastructure\obj\Debug\net8.0\Ledger.Infrastructure.genruntimeconfig.cache

@@ -35,15 +35,39 @@ Dockerized PostgreSQL, no business logic in controllers, follow .cursorrules str
   - Infrastructure: references Domain and Application
   - Api: references Application and Infrastructure
   - Tests: references all projects
-- Docker Compose for local PostgreSQL 16 (port 5432)
-- Serilog for structured logging (Console + File)
-- CorrelationId middleware pattern (X-Correlation-Id header)
-- EF Core 8.0 with Npgsql.EntityFrameworkCore.PostgreSQL 8.0.0
-- Health checks endpoint at `/health`
-- ProblemDetails configured for RFC7807 compliance
-- Testcontainers.PostgreSql for integration tests
 - Directory.Build.props for common MSBuild settings
 - .editorconfig for consistent code style
+
+# Phase 1.1 – Infrastructure Foundation
+
+**Prompt:**  
+"Add infrastructure foundation: Docker compose for PostgreSQL, EF Core + Npgsql wiring,  
+DbContext registration, health endpoint, CorrelationId middleware pattern.  
+No domain entities or migrations yet."
+
+**Decisions:**
+- Docker Compose for local PostgreSQL 16 (port 5432)
+  - Database: ledger
+  - User: ledger_user
+  - Password: ledger_password (development only)
+  - Health check configured
+  - Data volume for persistence
+- EF Core 8.0.11 with Npgsql.EntityFrameworkCore.PostgreSQL 8.0.11
+- LedgerDbContext created in Infrastructure/Data layer
+  - Constructor accepts DbContextOptions<LedgerDbContext>
+  - Configured for PostgreSQL via options pattern
+  - Sensitive data logging enabled in Development only
+- Connection string stored in appsettings.json (ConnectionStrings:LedgerDb)
+- Health checks endpoint at `/health`
+  - Uses AddDbContextCheck<LedgerDbContext> for database connectivity validation
+  - Returns 200 OK when healthy, 503 when unhealthy
+- CorrelationId middleware pattern (X-Correlation-Id header)
+  - Reads X-Correlation-Id from request header
+  - Generates new GUID if header is missing
+  - Stores correlation ID in HttpContext.Items["CorrelationId"]
+  - Adds correlation ID to response headers
+  - Registered early in middleware pipeline (before routing)
+  - Ready for audit logging integration
 
 # Phase 2 – Domain & Persistence
 

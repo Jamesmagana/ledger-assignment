@@ -9,3 +9,4 @@ D:\source\assignement3\ledger-assignment\src\Ledger.Domain\obj\Debug\net8.0\Ledg
 D:\source\assignement3\ledger-assignment\src\Ledger.Domain\obj\Debug\net8.0\refint\Ledger.Domain.dll
 D:\source\assignement3\ledger-assignment\src\Ledger.Domain\obj\Debug\net8.0\Ledger.Domain.pdb
 D:\source\assignement3\ledger-assignment\src\Ledger.Domain\obj\Debug\net8.0\ref\Ledger.Domain.dll
+D:\source\assignement3\ledger-assignment\src\Ledger.Domain\obj\Debug\net8.0\Ledger.Domain.sourcelink.json
