@@ -482,24 +482,89 @@ Do not add roles or policies."
   - Valid JWT grants access to all endpoints
   - No role-based or permission-based access control
 
-# Phase 8 – User Management & Login
+# Phase 7 – User Management & Login
 
 **Prompt:**  
-"Design and implement secure user creation and login  
-for a financial system."
+"Implement users and login end-to-end:
+- Add User entity and EF mapping + migration
+- Implement user creation with validations and hashing
+- Implement login with secure verification and generic error messages
+- Return JWT on successful login
+- Update failed login count / last login time
+- Enforce disabled user cannot login
+Add tests:
+- unit tests for hashing/verification
+- integration tests for create/login/duplicate/disabled
+Update VALIDATION_MATRIX.md and PROMPTS.md."
 
 **Decisions:**
-- Users persisted in database via EF Core
-- Email used as unique identifier (case-insensitive)
-- Email uniqueness enforced at DB level
-- Passwords hashed using strong adaptive cryptographic hashing
-- Timing-safe password comparison
-- Duplicate users rejected with 409 Conflict
-- Invalid login returns generic error (no user enumeration)
-- Failed login attempts tracked
-- User enable/disable supported (soft state)
-- Successful login updates last login timestamp
-- Login events treated as auditable actions
+- **User Domain Entity:**
+  - Created `User` entity inheriting from `BaseEntity`
+  - Properties: Email (unique case-insensitive), PasswordHash, IsEnabled, FailedLoginAttempts, LastLoginAt
+  - Immutability pattern with `With*` methods for updates
+- **EF Core Configuration:**
+  - Created `UserConfiguration` with case-insensitive unique index on Email (UPPER)
+  - PasswordHash max length 200 (BCrypt hashes are ~60 chars)
+  - IsEnabled default true, FailedLoginAttempts default 0
+  - UTC timestamps with defaults
+- **Database Migration:**
+  - Generated `AddUserEntity` migration
+  - Includes case-insensitive unique index: `CREATE UNIQUE INDEX "IX_Users_Email_Normalized" ON "Users" (UPPER("Email"));`
+- **Password Hashing:**
+  - Added `BCrypt.Net-Next` package (version 2.0.0)
+  - Created `IPasswordHasher` and `PasswordHasher` service
+  - BCrypt work factor 12 (adaptive hashing with salt)
+  - Timing-safe verification (BCrypt handles internally)
+- **JWT Token Generation:**
+  - Created `IJwtTokenService` and `JwtTokenService`
+  - Uses `JwtTokenSettings` (separate from API `JwtSettings` to maintain Clean Architecture)
+  - Token includes claims: sub (userId), email, jti (unique token ID)
+  - Token expiration: 1 hour
+  - Tokens signed with same secret key as JWT validation
+- **User Repository:**
+  - Created `IUserRepository` interface and `UserRepository` implementation
+  - Case-insensitive email lookup using EF Core ToUpper
+  - Methods: GetByIdAsync, FindByEmailAsync, AddAsync, UpdateAsync
+- **User Service:**
+  - Created `IUserService` and `UserService`
+  - `CreateUserAsync`: Validates email format, password strength (min 8 chars, letter + number), checks duplicates, hashes password
+  - `AuthenticateAsync`: Timing-safe password verification, checks IsEnabled, updates FailedLoginAttempts and LastLoginAt
+  - Generic error on authentication failure (no user enumeration)
+  - Always performs password verification even if user not found (timing-safe)
+- **Authentication Service:**
+  - Created `IAuthenticationService` and `AuthenticationService`
+  - `LoginAsync`: Orchestrates authentication and JWT token generation
+  - Returns `LoginResult` with token, userId, email (no password hash)
+  - Throws `UnauthorizedException` with generic message on failure
+- **DTOs:**
+  - `CreateUserRequest`: Email, Password (with validation attributes)
+  - `UserResponse`: Id, Email, IsEnabled, CreatedAt, UpdatedAt (NO PasswordHash)
+  - `LoginRequest`: Email, Password
+  - `LoginResponse`: Token, UserId, Email
+- **Controllers:**
+  - `UsersController`: POST /api/users ([AllowAnonymous] - public registration)
+  - `AuthController`: POST /api/auth/login ([AllowAnonymous] - public login)
+  - All error responses use ProblemDetails with reasonCode and correlationId
+- **Dependency Injection:**
+  - Registered all services in `Program.cs`:
+    - IPasswordHasher, IUserRepository, IUserService, IAuthenticationService, IJwtTokenService
+  - Configured `JwtTokenSettings` from `JwtSettings` (mapped in Program.cs)
+- **Unit Tests:**
+  - `PasswordHasherTests`: Hash/verify, timing-safe verification, error handling
+  - `JwtTokenServiceTests`: Token generation, claims validation, token validity
+  - `UserServiceTests`: Email/password validation, duplicate check, authentication, disabled user, no enumeration
+  - `AuthenticationServiceTests`: Login success/failure, token generation
+- **Integration Tests:**
+  - `UsersControllerTests`: User creation, duplicate email (case-insensitive), validation errors, password hash not in response
+  - `AuthControllerTests`: Login success/failure, token validity, disabled user, LastLoginAt update, FailedLoginAttempts tracking, no user enumeration
+- **Security Features:**
+  - Passwords hashed with BCrypt (never stored or returned in plain text)
+  - Timing-safe password verification (prevents user enumeration)
+  - Generic error messages on login failure ("Invalid email or password")
+  - Email uniqueness enforced at DB level (case-insensitive)
+  - Disabled users cannot log in
+  - Failed login attempts tracked and reset on success
+  - Last login timestamp updated on successful login
 
 # Phase 9 – Audit Logging (Financial Compliance)
 

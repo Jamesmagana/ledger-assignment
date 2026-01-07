@@ -189,12 +189,28 @@ builder.Services.AddAuthorization();
 builder.Services.AddScoped<IAccountRepository, AccountRepository>();
 builder.Services.AddScoped<IJournalEntryRepository, JournalEntryRepository>();
 builder.Services.AddScoped<ITrialBalanceRepository, TrialBalanceRepository>();
+builder.Services.AddScoped<IUserRepository, UserRepository>();
 
 // Register services
 builder.Services.AddScoped<IAccountService, AccountService>();
 builder.Services.AddScoped<IRequestHashService, RequestHashService>();
 builder.Services.AddScoped<IJournalEntryService, JournalEntryService>();
 builder.Services.AddScoped<ITrialBalanceService, TrialBalanceService>();
+
+// Register user and authentication services
+builder.Services.AddScoped<IPasswordHasher, PasswordHasher>();
+builder.Services.AddScoped<IUserRepository, UserRepository>();
+builder.Services.AddScoped<IUserService, UserService>();
+builder.Services.AddScoped<IAuthenticationService, AuthenticationService>();
+
+// Configure JWT token service settings (map from JwtSettings)
+builder.Services.Configure<Ledger.Application.Services.JwtTokenSettings>(options =>
+{
+    options.Issuer = jwtSettings.Issuer;
+    options.Audience = jwtSettings.Audience;
+    options.SecretKey = jwtSettings.SecretKey;
+});
+builder.Services.AddScoped<IJwtTokenService, JwtTokenService>();
 
 var app = builder.Build();
 

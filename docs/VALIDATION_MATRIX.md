@@ -86,32 +86,32 @@ JWT AUTHENTICATION (SIMPLE)
 USER CREATION
 ==================================================
 
-| Rule                              | Layer     | Enforcement              | Error Code         | Test         |
-|-----------------------------------|-----------|--------------------------|--------------------|--------------|
-| Email required                    | API       | DTO validation           | INVALID_EMAIL      | Unit         |
-| Valid email format                | API       | Validation               | INVALID_EMAIL      | Unit         |
-| Email uniqueness (case-insensitive)| DB + App | Unique index             | DUPLICATE_USER     | Integration  |
-| Password required                 | API       | DTO validation           | INVALID_PASSWORD   | Unit         |
-| Password strength enforced        | App       | Business rule            | WEAK_PASSWORD      | Unit         |
-| Password hashed                   | App       | Hashing service          | N/A                | Unit         |
-| No password returned              | API       | Response contract        | N/A                | Unit         |
-| User enabled by default           | App       | Default state            | N/A                | Unit         |
+| Rule                              | Layer     | Enforcement              | Error Code         | Test         | Status       |
+|-----------------------------------|-----------|--------------------------|--------------------|--------------|--------------|
+| Email required                    | API       | DTO validation           | INVALID_EMAIL      | Unit         | ✅ Implemented |
+| Valid email format                | API       | Validation               | INVALID_EMAIL      | Unit         | ✅ Implemented |
+| Email uniqueness (case-insensitive)| DB + App | Unique index             | DUPLICATE_USER     | Integration  | ✅ Implemented |
+| Password required                 | API       | DTO validation           | INVALID_PASSWORD   | Unit         | ✅ Implemented |
+| Password strength enforced        | App       | Business rule            | WEAK_PASSWORD      | Unit         | ✅ Implemented |
+| Password hashed                   | App       | Hashing service          | N/A                | Unit         | ✅ Implemented |
+| No password returned              | API       | Response contract        | N/A                | Integration  | ✅ Implemented |
+| User enabled by default           | App       | Default state            | N/A                | Unit         | ✅ Implemented |
 
 ==================================================
 USER LOGIN
 ==================================================
 
-| Rule                              | Layer     | Enforcement              | Error Code           | Test         |
-|-----------------------------------|-----------|--------------------------|----------------------|--------------|
-| Email required                    | API       | DTO validation           | INVALID_CREDENTIALS  | Unit         |
-| Password required                 | API       | DTO validation           | INVALID_CREDENTIALS  | Unit         |
-| Invalid credentials generic error | App       | Auth logic               | INVALID_CREDENTIALS  | Integration  |
-| No user enumeration               | API       | Error handling           | INVALID_CREDENTIALS  | Integration  |
-| Disabled user blocked             | App       | State check              | USER_DISABLED        | Integration  |
-| Failed login count tracked        | App       | State update             | N/A                  | Integration  |
-| Successful login updates timestamp| App       | State update             | N/A                  | Integration  |
-| JWT issued on success             | App       | Token generation         | N/A                  | Integration  |
-| Login audited                     | Infra     | Audit interceptor        | N/A                  | Integration  |
+| Rule                              | Layer     | Enforcement              | Error Code           | Test         | Status       |
+|-----------------------------------|-----------|--------------------------|----------------------|--------------|--------------|
+| Email required                    | API       | DTO validation           | INVALID_CREDENTIALS  | Unit         | ✅ Implemented |
+| Password required                 | API       | DTO validation           | INVALID_CREDENTIALS  | Unit         | ✅ Implemented |
+| Invalid credentials generic error | App       | Auth logic               | INVALID_CREDENTIALS  | Integration  | ✅ Implemented |
+| No user enumeration               | App       | Timing-safe verification | INVALID_CREDENTIALS  | Integration  | ✅ Implemented |
+| Disabled user blocked             | App       | State check              | INVALID_CREDENTIALS  | Integration  | ✅ Implemented |
+| Failed login count tracked        | App       | State update             | N/A                  | Integration  | ✅ Implemented |
+| Successful login updates timestamp| App       | State update             | N/A                  | Integration  | ✅ Implemented |
+| JWT issued on success             | App       | Token generation         | N/A                  | Integration  | ✅ Implemented |
+| Timing-safe password verification | App       | BCrypt verification      | N/A                  | Unit         | ✅ Implemented |
 
 ==================================================
 AUDIT LOGGING
