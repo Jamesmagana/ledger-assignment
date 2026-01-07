@@ -5,15 +5,17 @@ End-to-End Validation Coverage
 ACCOUNTS API
 ==================================================
 
-| Rule                                | Layer     | Enforcement                  | Error Code               | Test         |
-|-------------------------------------|-----------|------------------------------|--------------------------|--------------|
-| Name required                       | API       | DTO validation               | INVALID_NAME             | Unit         |
-| Name length limits                  | API       | DTO validation               | INVALID_NAME             | Unit         |
-| Name uniqueness (case-insensitive)  | DB + App  | Unique index (UPPER) + check | DUPLICATE_ACCOUNT_NAME   | Integration  |
-| Valid AccountType enum              | API       | Enum validation              | INVALID_ACCOUNT_TYPE     | Unit         |
-| Prevent type change after usage     | App       | Business rule                | ACCOUNT_TYPE_IMMUTABLE   | Integration  |
-| Account exists                      | App       | Lookup                       | ACCOUNT_NOT_FOUND        | Unit         |
-| Account active                      | App       | Flag check                   | ACCOUNT_INACTIVE         | Unit         |
+| Rule                                | Layer     | Enforcement                  | Error Code               | Test         | Status      |
+|-------------------------------------|-----------|------------------------------|--------------------------|--------------|-------------|
+| Name required                       | API       | DTO validation               | INVALID_NAME             | Unit         | ✅ Implemented |
+| Name length limits                  | API       | DTO validation               | INVALID_NAME             | Unit         | ✅ Implemented |
+| Name trimmed                        | App       | Service validation           | INVALID_NAME             | Unit         | ✅ Implemented |
+| Name uniqueness (case-insensitive)  | DB + App  | Unique index (UPPER) + check | DUPLICATE_ACCOUNT_NAME   | Integration  | ✅ Implemented |
+| Valid AccountType enum              | API       | Enum validation              | INVALID_ACCOUNT_TYPE     | Unit         | ✅ Implemented |
+| Prevent type change after usage     | App       | Business rule                | ACCOUNT_TYPE_IMMUTABLE   | Integration  | ✅ Implemented |
+| Account exists                      | App       | Lookup                       | ACCOUNT_NOT_FOUND        | Unit + Integration | ✅ Implemented |
+| Account active (IsActive update)    | App       | Service method               | N/A                      | Integration  | ✅ Implemented |
+| UpdatedAt timestamp on update       | Infra     | Repository update            | N/A                      | Integration  | ✅ Implemented |
 
 ==================================================
 JOURNAL ENTRY POSTING

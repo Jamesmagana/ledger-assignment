@@ -1,5 +1,8 @@
 using Ledger.Api.Middleware;
+using Ledger.Application.Repositories;
+using Ledger.Application.Services;
 using Ledger.Infrastructure.Data;
+using Ledger.Infrastructure.Repositories;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.EntityFrameworkCore;
 
@@ -66,6 +69,12 @@ builder.Services.AddDbContext<LedgerDbContext>(options =>
 builder.Services.AddHealthChecks()
     .AddDbContextCheck<LedgerDbContext>();
 
+// Register repositories
+builder.Services.AddScoped<IAccountRepository, AccountRepository>();
+
+// Register services
+builder.Services.AddScoped<IAccountService, AccountService>();
+
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
@@ -84,3 +93,6 @@ app.MapControllers();
 app.MapHealthChecks("/health");
 
 app.Run();
+
+// Make Program class accessible for integration tests
+public partial class Program { }

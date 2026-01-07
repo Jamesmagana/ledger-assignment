@@ -111,6 +111,76 @@ Ensure consistent envelope across the API. Update PROMPTS.md and add test covera
   - Tests verify ProblemDetails structure (RFC7807 compliance)
   - Tests verify correlationId generation when missing
 
+# Phase 3 – Accounts API Implementation
+
+**Prompt:**  
+"Implement Accounts feature end-to-end: DTOs + validation, Application services/handlers for rules,  
+Infrastructure repositories/DbContext access, Controllers thin only, Duplicate prevention uses DB constraint + friendly 409 mapping.  
+Add tests: Unit tests for validations and business rules, Integration tests for DB uniqueness and update constraints.  
+Update VALIDATION_MATRIX.md."
+
+**Decisions:**
+- **DTOs Created:**
+  - `CreateAccountRequest`: Name (required, max 200), Type (required), IsActive (default true)
+  - `UpdateAccountRequest`: IsActive only (type is immutable after usage)
+  - `AccountResponse`: Full account details (Id, Name, Type, IsActive, CreatedAt, UpdatedAt)
+  - Data annotations for API-level validation
+- **Repository Pattern:**
+  - `IAccountRepository` interface in Application layer
+  - `AccountRepository` implementation in Infrastructure layer
+  - Maintains Clean Architecture boundaries (Application doesn't reference Infrastructure)
+  - Methods: GetByIdAsync, GetAllAsync, FindByNameAsync (case-insensitive), HasJournalLinesAsync, AddAsync, UpdateAsync
+- **Service Layer:**
+  - `IAccountService` interface and `AccountService` implementation
+  - Validation logic: name trimming, length checks, empty after trim
+  - Duplicate name checking (case-insensitive) before insert
+  - Type immutability check (defensive, though PUT only allows IsActive changes)
+  - Handles DbUpdateException for database constraint violations (backstop)
+- **Controller Implementation:**
+  - `AccountsController` with thin implementation (delegates to service)
+  - Endpoints: POST /api/accounts, GET /api/accounts, GET /api/accounts/{id}, PUT /api/accounts/{id}
+  - Returns appropriate HTTP status codes (201 Created, 200 OK, 404 Not Found)
+  - Exception handling via middleware (automatic ProblemDetails conversion)
+- **Duplicate Prevention Strategy:**
+  - Application layer: Check for existing account with same name (case-insensitive) before insert
+  - Database: Unique index (UPPER(Name)) as backstop
+  - DbUpdateException handling → ConflictException with reasonCode "DUPLICATE_ACCOUNT_NAME"
+  - Returns 409 Conflict with friendly error message
+- **Timestamp Management:**
+  - CreatedAt: Set to DateTime.UtcNow on creation
+  - UpdatedAt: Set via EF Core Property API in repository UpdateAsync method
+  - Database defaults also set (backstop)
+- **Unit Tests:**
+  - `AccountServiceTests.cs` covering:
+    - Valid account creation
+    - Name validation (empty, whitespace, too long)
+    - Duplicate name detection (case-insensitive)
+    - GetByIdAsync (found and not found)
+    - GetAllAccountsAsync
+    - UpdateAccountIsActiveAsync (success and not found)
+    - Empty ID validation
+  - Uses Moq for repository mocking
+- **Integration Tests:**
+  - `AccountsControllerTests.cs` using Testcontainers.PostgreSql
+  - WebApplicationFactory for API testing
+  - Test scenarios:
+    - POST: valid request (201), duplicate name (409), duplicate case-insensitive (409), invalid name (400)
+    - GET: list all accounts (200), get by ID (200), not found (404)
+    - PUT: update IsActive (200), not found (404)
+    - CorrelationId propagation
+  - Runs migrations automatically in test setup
+  - Cleans up container after tests
+- **Dependency Injection:**
+  - Registered `IAccountRepository` → `AccountRepository` (scoped)
+  - Registered `IAccountService` → `AccountService` (scoped)
+  - DbContext already registered in Program.cs
+- **Error Responses:**
+  - All errors use ProblemDetails format (via middleware)
+  - 400: Validation errors (INVALID_NAME, INVALID_ACCOUNT_TYPE, INVALID_ACCOUNT_ID)
+  - 404: Account not found (ACCOUNT_NOT_FOUND)
+  - 409: Duplicate name (DUPLICATE_ACCOUNT_NAME)
+  - All include reasonCode and correlationId
+
 # Phase 2 – Domain & Persistence
 
 **Prompt:**  
@@ -159,18 +229,6 @@ but keep cross-entity validation for Application layer."
   - XML documentation comments on all entities
   - Immutability expectations clearly documented
   - Business rules (e.g., type change prevention) documented but enforced in Application layer
-
-# Phase 3 – Accounts API
-
-**Prompt:**  
-"Implement Chart of Accounts with duplicate prevention,  
-case-insensitive uniqueness, and validation."
-
-**Decisions:**
-- Account names normalized for case-insensitive uniqueness
-- Duplicate account names rejected with 409 Conflict
-- Account type cannot change after first usage
-- Account activation state validated before journal posting
 
 # Phase 4 – Journal Entry Posting
 
