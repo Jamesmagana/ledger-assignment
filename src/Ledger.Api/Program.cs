@@ -72,11 +72,13 @@ builder.Services.AddHealthChecks()
 // Register repositories
 builder.Services.AddScoped<IAccountRepository, AccountRepository>();
 builder.Services.AddScoped<IJournalEntryRepository, JournalEntryRepository>();
+builder.Services.AddScoped<ITrialBalanceRepository, TrialBalanceRepository>();
 
 // Register services
 builder.Services.AddScoped<IAccountService, AccountService>();
 builder.Services.AddScoped<IRequestHashService, RequestHashService>();
 builder.Services.AddScoped<IJournalEntryService, JournalEntryService>();
+builder.Services.AddScoped<ITrialBalanceService, TrialBalanceService>();
 
 var app = builder.Build();
 

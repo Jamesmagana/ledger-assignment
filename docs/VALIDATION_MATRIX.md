@@ -51,13 +51,13 @@ IDEMPOTENCY & DUPLICATES
 TRIAL BALANCE REPORT
 ==================================================
 
-| Rule                              | Layer    | Enforcement   | Test        |
-|-----------------------------------|----------|---------------|-------------|
-| Each account appears once         | DB query | Grouping      | Integration |
-| Zero-activity accounts included   | DB query | LEFT JOIN     | Integration |
-| Net = debits - credits            | DB query | Aggregate     | Integration |
-| Total net equals 0                | App      | Validation    | Integration |
-| asOf filter correctness           | DB query | WHERE clause  | Integration |
+| Rule                              | Layer    | Enforcement   | Test        | Status      |
+|-----------------------------------|----------|---------------|-------------|-------------|
+| Each account appears once         | DB query | Grouping      | Integration | ✅ Implemented |
+| Zero-activity accounts included   | DB query | LEFT JOIN     | Integration | ✅ Implemented |
+| Net = debits - credits            | DB query | Aggregate     | Integration | ✅ Implemented |
+| Total net equals 0                | App      | Validation    | Integration | ✅ Implemented |
+| asOf filter correctness           | DB query | WHERE clause  | Integration | ✅ Implemented |
 
 ==================================================
 JWT AUTHENTICATION (SIMPLE)

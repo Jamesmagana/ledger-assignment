@@ -318,18 +318,73 @@ Concurrency integration test (parallel requests -> single insert). Update VALIDA
   - 200: Idempotent replay (with IdempotencyReplay flag)
   - All include reasonCode and correlationId
 
-# Phase 5 – Financial Reporting
+# Phase 5 – Trial Balance Reporting
 
 **Prompt:**  
-"Implement trial balance report ensuring correctness,  
-no duplicate accounts, and zero-net totals."
+"Implement trial balance: Efficient DB aggregation query including zero-activity accounts (LEFT JOIN),  
+Ensure each account appears once, Validate total net equals 0 (fail loudly if not).  
+Add integration tests: zero-activity inclusion, net correctness, total net == 0, asOf filter correctness.  
+Update VALIDATION_MATRIX.md."
 
 **Decisions:**
-- LEFT JOIN strategy to include zero-activity accounts
-- Debit/Credit aggregation performed at DB level
-- Each account appears exactly once
-- Total net balance validated to equal zero
-- Optional `asOf` filter supported
+- **DTOs Created:**
+  - `TrialBalanceResponse`: AsOf (nullable), Items (list), TotalNet
+  - `TrialBalanceItemResponse`: AccountId, AccountName, AccountType, TotalDebits, TotalCredits, Net
+  - Application models (`TrialBalanceItem`, `TrialBalanceResult`) to maintain Clean Architecture
+- **Repository Pattern:**
+  - `ITrialBalanceRepository` interface in Application layer
+  - `TrialBalanceRepository` implementation in Infrastructure layer
+  - Efficient LEFT JOIN query to include all accounts (even zero-activity)
+  - Aggregation using LINQ with GROUP BY
+  - Filters by `JournalEntry.PostedAt <= asOf` (if asOf provided)
+  - Orders results by AccountName for consistent output
+- **Query Strategy:**
+  - LEFT JOIN Accounts with JournalEntryLines (via JournalEntries)
+  - Filter lines by PostedAt <= asOf (if provided)
+  - Group by Account (Id, Name, Type)
+  - Aggregate: SUM(CASE WHEN Direction = Debit THEN Amount ELSE 0) as TotalDebits
+  - Aggregate: SUM(CASE WHEN Direction = Credit THEN Amount ELSE 0) as TotalCredits
+  - Calculate Net = TotalDebits - TotalCredits
+  - Use DefaultIfEmpty() for LEFT JOIN behavior
+  - AsNoTracking() for read-only query
+- **Service Layer:**
+  - `ITrialBalanceService` and `TrialBalanceService` implementation
+  - Calls repository to get trial balance items
+  - Calculates TotalNet = sum of all Net values
+  - **Validates TotalNet == 0** (throws ValidationException if not)
+  - Error code: "UNBALANCED_TRIAL_BALANCE" (400 Bad Request)
+  - This ensures data integrity (double-entry accounting must balance)
+- **Controller Implementation:**
+  - `ReportsController` with GET /api/reports/trial-balance endpoint
+  - Accepts optional `asOf` query parameter (DateTime)
+  - Returns 200 OK with `TrialBalanceResponse`
+  - Returns 400 Bad Request if trial balance is unbalanced
+  - Maps Application models to API DTOs
+- **Integration Tests:**
+  - `TrialBalanceControllerTests.cs` using Testcontainers.PostgreSql
+  - Test scenarios:
+    - No journal entries: all accounts with zero net
+    - With journal entries: correct balances
+    - Each account appears exactly once (no duplicates)
+    - Zero-activity accounts included with net=0
+    - TotalNet equals 0 (validated)
+    - Net calculation correctness (debits - credits)
+    - asOf filtering works correctly
+    - Accounts ordered by name
+    - Multiple entries aggregated correctly
+  - Creates test accounts and journal entries
+  - Verifies aggregation and balance validation
+- **Edge Cases Handled:**
+  - No accounts exist → empty list, TotalNet = 0
+  - No journal entries → all accounts with net=0, TotalNet = 0
+  - All accounts have zero activity → all nets = 0, TotalNet = 0
+  - asOf before any entries → all accounts with net=0
+  - asOf after all entries → includes all entries
+  - Multiple entries for same account → correct aggregation
+- **Error Responses:**
+  - 400 Bad Request: Unbalanced trial balance (UNBALANCED_TRIAL_BALANCE)
+  - All errors use ProblemDetails format (via middleware)
+  - All include reasonCode and correlationId
 
 # Phase 6 – Testing & Hardening
 
