@@ -233,16 +233,90 @@ but keep cross-entity validation for Application layer."
 # Phase 4 – Journal Entry Posting
 
 **Prompt:**  
-"Implement idempotent journal posting with concurrency safety,  
-payload mismatch detection, and atomic transactions."
+"Implement Journal Entries end-to-end: DTOs and full validation pipeline,  
+Canonicalization + SHA-256 request hash, DB-backed idempotency using unique externalId,  
+On unique violation, fetch existing and compare request hash, Enforce atomic DB transaction.  
+Add tests: Unit tests for balancing and validation rules, Integration tests for idempotency replay and payload mismatch,  
+Concurrency integration test (parallel requests -> single insert). Update VALIDATION_MATRIX.md."
 
 **Decisions:**
-- Canonical request hashing using SHA-256
-- DB unique constraint on `externalId` as idempotency source of truth
-- Same `externalId` + same payload → replay (200 OK)
-- Same `externalId` + different payload → 409 Conflict
-- No pre-check insert patterns (race-condition safe)
-- JournalEntry and lines persisted atomically in a single DB transaction
+- **DTOs Created:**
+  - `CreateJournalEntryRequest`: ExternalId (optional), Lines (min 2)
+  - `CreateJournalEntryLineRequest`: AccountId, Direction, Amount
+  - `JournalEntryResponse`: Full entry with lines and IdempotencyReplay flag
+  - `JournalEntryLineResponse`: Line details
+  - Application layer models (`CreateJournalEntryModel`, `CreateJournalEntryLineModel`) to maintain Clean Architecture
+- **Request Hash Service:**
+  - `IRequestHashService` and `RequestHashService` for SHA-256 canonical hashing
+  - Canonical format: sorted lines (AccountId, Direction, Amount), compact JSON
+  - Deterministic: same input always produces same hash
+  - Handles null ExternalId correctly
+- **Repository Pattern:**
+  - `IJournalEntryRepository` interface in Application layer
+  - `JournalEntryRepository` implementation in Infrastructure layer
+  - `AddWithLinesAsync` uses explicit database transaction for atomicity
+  - `FindByExternalIdAsync` for idempotency checks
+  - `GetLinesByJournalEntryIdAsync` for loading entry with lines
+- **Service Layer:**
+  - `IJournalEntryService` and `JournalEntryService` implementation
+  - Validation rules (in order):
+    1. Line count >= 2
+    2. Amount > 0 and scale <= 4 decimal places
+    3. Valid LineDirection enum
+    4. All accounts exist and are active
+    5. Balance validation (debits == credits, exact decimal match)
+  - Idempotency logic:
+    - If ExternalId provided: check for existing entry
+    - Compare request hashes
+    - Same hash → return existing (200 OK, IsIdempotencyReplay = true)
+    - Different hash → throw ConflictException (409)
+  - Handles DbUpdateException for concurrent inserts (fetch-on-conflict pattern)
+  - Atomic transaction ensures entry + lines are written together
+- **Controller Implementation:**
+  - `JournalEntriesController` with thin implementation
+  - POST /api/journal-entries: returns 201 Created for new entries, 200 OK for idempotent replays
+  - GET /api/journal-entries/{id}: returns entry with all lines
+  - Maps Application models to/from API DTOs
+- **Idempotency Strategy:**
+  - Application layer: Check for existing entry with same ExternalId before insert
+  - Compute request hash (SHA-256 of canonical JSON)
+  - Compare hashes: same → replay, different → conflict
+  - Database: Unique partial index on ExternalId as backstop
+  - On DbUpdateException: fetch existing entry and compare hash (fetch-on-conflict)
+  - No pre-check patterns (race-condition safe)
+- **Atomic Transaction:**
+  - Uses `DbContext.Database.BeginTransactionAsync()`
+  - Wraps entry + lines creation in single transaction
+  - Commits after successful SaveChangesAsync
+  - Rolls back on any exception
+  - Ensures all-or-nothing behavior
+- **Unit Tests:**
+  - `RequestHashServiceTests.cs`: deterministic hashing, canonical format, null handling
+  - `JournalEntryServiceTests.cs`: all validation scenarios, balance checks, idempotency logic
+  - Uses Moq for repository mocking
+- **Integration Tests:**
+  - `JournalEntriesControllerTests.cs` using Testcontainers.PostgreSql
+  - Test scenarios:
+    - Valid entry creation (201)
+    - Less than 2 lines (400)
+    - Unbalanced entry (400)
+    - Idempotent replay (200 OK with IdempotencyReplay = true)
+    - Idempotency conflict (409)
+    - Get entry by ID (200, 404)
+    - Exact decimal balance validation
+  - Runs migrations automatically
+- **Concurrency Test:**
+  - `JournalEntriesConcurrencyTests.cs`: parallel requests with same ExternalId
+  - Verifies only one entry is created
+  - Verifies all requests return 200 OK with same entry ID
+  - Verifies database constraint prevents duplicates
+  - Uses Task.WhenAll for parallel execution
+- **Error Responses:**
+  - All errors use ProblemDetails format (via middleware)
+  - 400: Validation errors (INVALID_LINE_COUNT, INVALID_AMOUNT, INVALID_AMOUNT_SCALE, INVALID_DIRECTION, ACCOUNT_NOT_FOUND, ACCOUNT_INACTIVE, UNBALANCED_ENTRY)
+  - 409: Idempotency conflict (DUPLICATE_EXTERNAL_ID)
+  - 200: Idempotent replay (with IdempotencyReplay flag)
+  - All include reasonCode and correlationId
 
 # Phase 5 – Financial Reporting
 

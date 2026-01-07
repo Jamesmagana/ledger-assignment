@@ -21,16 +21,20 @@ ACCOUNTS API
 JOURNAL ENTRY POSTING
 ==================================================
 
-| Rule                     | Layer     | Enforcement                  | Error Code             | Test                |
-|--------------------------|-----------|------------------------------|------------------------|---------------------|
-| Minimum 2 lines          | App       | Validation                   | INVALID_LINE_COUNT     | Unit                |
-| Amount > 0               | API + DB  | Validator + CHECK constraint | INVALID_AMOUNT         | Integration         |
-| Decimal scale ≤ 4         | API       | Validation                   | INVALID_AMOUNT_SCALE   | Unit                |
-| Debit OR Credit only     | API       | Validation                   | INVALID_DIRECTION      | Unit                |
-| Accounts exist           | App       | Lookup                       | ACCOUNT_NOT_FOUND      | Integration         |
-| Account active           | App       | Lookup                       | ACCOUNT_INACTIVE       | Integration         |
-| Debits == Credits        | App       | Pre-commit validation        | UNBALANCED_ENTRY       | Unit + Integration  |
-| Atomic write             | DB        | Transaction                  | N/A                    | Integration         |
+| Rule                     | Layer     | Enforcement                  | Error Code             | Test                | Status      |
+|--------------------------|-----------|------------------------------|------------------------|---------------------|-------------|
+| Minimum 2 lines          | App       | Validation                   | INVALID_LINE_COUNT     | Unit                | ✅ Implemented |
+| Amount > 0               | API + DB  | Validator + CHECK constraint | INVALID_AMOUNT         | Integration         | ✅ Implemented |
+| Decimal scale ≤ 4         | App       | Validation                   | INVALID_AMOUNT_SCALE   | Unit                | ✅ Implemented |
+| Debit OR Credit only     | App       | Enum validation              | INVALID_DIRECTION      | Unit                | ✅ Implemented |
+| Accounts exist           | App       | Lookup                       | ACCOUNT_NOT_FOUND      | Integration         | ✅ Implemented |
+| Account active           | App       | Lookup                       | ACCOUNT_INACTIVE       | Integration         | ✅ Implemented |
+| Debits == Credits        | App       | Pre-commit validation        | UNBALANCED_ENTRY       | Unit + Integration  | ✅ Implemented |
+| Atomic write             | DB        | Transaction                  | N/A                    | Integration         | ✅ Implemented |
+| Idempotency (same hash)  | App + DB  | Hash comparison + unique index | IDEMPOTENCY_REPLAY (200 OK) | Integration | ✅ Implemented |
+| Idempotency (diff hash)  | App + DB  | Hash comparison + unique index | DUPLICATE_EXTERNAL_ID (409) | Integration | ✅ Implemented |
+| Concurrency safety       | DB        | Unique constraint + fetch-on-conflict | N/A | Integration | ✅ Implemented |
+| Request hash canonical   | App       | SHA-256 of sorted JSON       | N/A                    | Unit                | ✅ Implemented |
 
 ==================================================
 IDEMPOTENCY & DUPLICATES
