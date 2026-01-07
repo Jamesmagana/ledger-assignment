@@ -1,3 +1,4 @@
+using Ledger.Domain.Entities;
 using Microsoft.EntityFrameworkCore;
 
 namespace Ledger.Infrastructure.Data;
@@ -8,6 +9,10 @@ public class LedgerDbContext : DbContext
         : base(options)
     {
     }
+
+    public DbSet<Account> Accounts { get; set; } = null!;
+    public DbSet<JournalEntry> JournalEntries { get; set; } = null!;
+    public DbSet<JournalEntryLine> JournalEntryLines { get; set; } = null!;
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
@@ -20,8 +25,8 @@ public class LedgerDbContext : DbContext
     {
         base.OnModelCreating(modelBuilder);
 
-        // Entity configurations will be added in future phases
-        // when domain entities are implemented
+        // Apply all entity configurations from this assembly
+        modelBuilder.ApplyConfigurationsFromAssembly(typeof(LedgerDbContext).Assembly);
     }
 }
 

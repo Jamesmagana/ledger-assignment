@@ -24,6 +24,33 @@ bld/
 [Oo]bj/
 [Ll]og/
 
+# .NET Core / .NET build artifacts
+# Explicitly ignore all bin and obj directories recursively
+**/bin/
+**/obj/
+**/Bin/
+**/Obj/
+bin/
+obj/
+Bin/
+Obj/
+
+# Compiled files (DLLs, executables, debug symbols)
+*.dll
+*.exe
+*.pdb
+*.cache
+*.ilk
+*.meta
+*.obj
+*.iobj
+*.pch
+*.ipdb
+*.deps.json
+*.runtimeconfig.json
+*.runtimeconfig.dev.json
+*.staticwebassets.endpoints.json
+
 
 # Visual Studio 2015/2017 cache/options directory
 .vs/
@@ -151,16 +178,6 @@ AutoTest.Net/
 
 # Installshield output folder
 [Ee]xpress/
-
-# DocProject is a documentation generator add-in
-DocProject/buildhelp/
-DocProject/Help/*.HxT
-DocProject/Help/*.HxC
-DocProject/Help/*.hhc
-DocProject/Help/*.hhk
-DocProject/Help/*.hhp
-DocProject/Help/Html2
-DocProject/Help/html
 
 # Click-Once directory
 publish/
@@ -332,15 +349,3 @@ ASALocalRun/
 DMS-backend/gcpconfig
 GeneratedDocs
 gcpconfig
-
-# speridian stuff
-ssh/
-/CaseXellence.Core.DMS/DMS.Server/FileRepository.Adapters/FileRepository.GCP/Services/GoogleStorageRepository.cs
-/CaseXellence.Core.DMS/DMS.Server/DMS.DocManagement/Services/DocumentService.cs
-/API/DMS/Documents/CC
-/nuget.exe
-/API/DMS/Documents/Training/cms.casex/4b20de31-1912-4eb9-a282-aed1004b34a1/Training/Training1/1/20250313182223213_28556afd.docx
-/API/DMS/Templates/Training/LETTER/Training/Training1/ENG.docx
-/API/DMS/Templates/CC/LETTER/ABC/CLOSURE_SUMMARY/ENGLISH.docx
-/API/DMS/Templates/
-/API/DMS/Documents/

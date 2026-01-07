@@ -9,7 +9,7 @@ ACCOUNTS API
 |-------------------------------------|-----------|------------------------------|--------------------------|--------------|
 | Name required                       | API       | DTO validation               | INVALID_NAME             | Unit         |
 | Name length limits                  | API       | DTO validation               | INVALID_NAME             | Unit         |
-| Name uniqueness (case-insensitive)  | DB + App  | Unique index + check         | DUPLICATE_ACCOUNT_NAME   | Integration  |
+| Name uniqueness (case-insensitive)  | DB + App  | Unique index (UPPER) + check | DUPLICATE_ACCOUNT_NAME   | Integration  |
 | Valid AccountType enum              | API       | Enum validation              | INVALID_ACCOUNT_TYPE     | Unit         |
 | Prevent type change after usage     | App       | Business rule                | ACCOUNT_TYPE_IMMUTABLE   | Integration  |
 | Account exists                      | App       | Lookup                       | ACCOUNT_NOT_FOUND        | Unit         |
@@ -22,7 +22,7 @@ JOURNAL ENTRY POSTING
 | Rule                     | Layer     | Enforcement                  | Error Code             | Test                |
 |--------------------------|-----------|------------------------------|------------------------|---------------------|
 | Minimum 2 lines          | App       | Validation                   | INVALID_LINE_COUNT     | Unit                |
-| Amount > 0               | API + DB  | Validator + CHECK            | INVALID_AMOUNT         | Integration         |
+| Amount > 0               | API + DB  | Validator + CHECK constraint | INVALID_AMOUNT         | Integration         |
 | Decimal scale ≤ 4         | API       | Validation                   | INVALID_AMOUNT_SCALE   | Unit                |
 | Debit OR Credit only     | API       | Validation                   | INVALID_DIRECTION      | Unit                |
 | Accounts exist           | App       | Lookup                       | ACCOUNT_NOT_FOUND      | Integration         |
@@ -38,8 +38,8 @@ IDEMPOTENCY & DUPLICATES
 |------------------------------------|-------------|------------------|-------------|
 | Same externalId, same payload      | DB + App    | 200 replay       | Integration |
 | Same externalId, different payload | App         | 409 conflict     | Integration |
-| Concurrent same externalId         | DB          | Single insert    | Integration |
-| Duplicate prevention               | DB          | Unique constraint| Integration |
+| Concurrent same externalId         | DB          | Unique partial index| Integration |
+| Duplicate prevention               | DB          | Unique partial index (WHERE ExternalId IS NOT NULL)| Integration |
 
 ==================================================
 TRIAL BALANCE REPORT
@@ -115,6 +115,19 @@ AUDIT LOGGING
 | CorrelationId captured            | API   | Middleware                   | Integration  |
 | Append-only behavior              | DB    | No update/delete paths       | Integration  |
 | Audit failure blocks transaction  | DB    | Transaction rollback         | Integration  |
+
+==================================================
+DATABASE CONSTRAINTS (BACKSTOP)
+==================================================
+
+| Rule                              | Layer | Enforcement                  | Test         |
+|-----------------------------------|-------|------------------------------|--------------|
+| Account name case-insensitive unique| DB   | Unique index (UPPER(Name))   | Integration  |
+| JournalEntry ExternalId unique    | DB    | Unique partial index          | Integration  |
+| Line Amount > 0                   | DB    | CHECK constraint              | Integration  |
+| Money precision numeric(20,4)     | DB    | Column type                   | Integration  |
+| No cascade deletes               | DB    | Foreign key (Restrict)         | Integration  |
+| UTC timestamps                    | DB    | Column type (timestamptz)     | Integration  |
 
 ==================================================
 GLOBAL RULES
