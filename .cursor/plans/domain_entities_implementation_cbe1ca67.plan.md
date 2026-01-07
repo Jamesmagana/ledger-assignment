@@ -220,5 +220,3 @@ Domain entities will NOT contain validation logic (per Clean Architecture):
 Update `PROMPTS.md` with Phase 2 decisions:
 
 - Entity structure and properties
-- Enum definitions
-- Immutability expectations

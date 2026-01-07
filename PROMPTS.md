@@ -69,6 +69,48 @@ No domain entities or migrations yet."
   - Registered early in middleware pipeline (before routing)
   - Ready for audit logging integration
 
+# Phase 2.1 – Error Handling Standardization
+
+**Prompt:**  
+"Standardize error handling: RFC7807 ProblemDetails for all failures,  
+include reasonCode and correlationId, map validation -> 400, duplicates -> 409, auth -> 401.  
+Ensure consistent envelope across the API. Update PROMPTS.md and add test coverage."
+
+**Decisions:**
+- **ProblemDetailsExtensions** created for adding custom properties (reasonCode, correlationId)
+- **Custom Exception Types** in Application layer:
+  - ValidationException → 400 Bad Request
+  - NotFoundException → 404 Not Found
+  - ConflictException → 409 Conflict
+  - UnauthorizedException → 401 Unauthorized
+- **ExceptionHandlingMiddleware** implemented:
+  - Catches all unhandled exceptions
+  - Converts to RFC7807 ProblemDetails format
+  - Maps exception types to appropriate HTTP status codes
+  - Always includes reasonCode and correlationId
+  - Handles database exceptions (DbUpdateException) with unique constraint detection
+  - Logs exceptions with correlationId for traceability
+- **Model Validation** configured:
+  - InvalidModelStateResponseFactory returns ProblemDetails
+  - Includes validation errors in extensions
+  - Always includes reasonCode (VALIDATION_ERROR) and correlationId
+  - Returns 400 Bad Request for validation failures
+- **Status Code Mapping:**
+  - Validation errors → 400 (VALIDATION_ERROR)
+  - Not found → 404 (NOT_FOUND)
+  - Conflicts/duplicates → 409 (CONFLICT_*, DUPLICATE_*)
+  - Unauthorized → 401 (UNAUTHORIZED)
+  - Generic errors → 500 (INTERNAL_ERROR)
+- **CorrelationId Integration:**
+  - Extracted from HttpContext.Items["CorrelationId"]
+  - Generated if missing (GUID)
+  - Included in all error responses
+- **Test Coverage:**
+  - Unit tests for all exception types and status code mappings
+  - Tests verify reasonCode and correlationId presence
+  - Tests verify ProblemDetails structure (RFC7807 compliance)
+  - Tests verify correlationId generation when missing
+
 # Phase 2 – Domain & Persistence
 
 **Prompt:**  

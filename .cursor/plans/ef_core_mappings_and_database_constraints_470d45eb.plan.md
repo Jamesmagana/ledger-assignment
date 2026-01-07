@@ -302,6 +302,3 @@ docs/
 
 4. Migration applies to database successfully
 5. Constraints are documented
-6. PROMPTS.md and VALIDATION_MATRIX.md updated
-
-## Dependencies
