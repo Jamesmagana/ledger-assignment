@@ -1,42 +1,38 @@
 using System.Net;
+using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
 using Ledger.Api.DTOs.Accounts;
+using Ledger.Api.DTOs.Auth;
 using Ledger.Api.DTOs.JournalEntries;
+using Ledger.Api.DTOs.Users;
 using Ledger.Application.Repositories;
 using Ledger.Application.Services;
 using Ledger.Domain.Enums;
 using Ledger.Infrastructure.Data;
 using Ledger.Infrastructure.Repositories;
+using Ledger.Tests.Helpers;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Configuration.Memory;
 using Microsoft.Extensions.DependencyInjection;
-using Testcontainers.PostgreSql;
 
 namespace Ledger.Tests.Integration.Api;
 
 public class JournalEntriesControllerTests : IAsyncLifetime
 {
-    private PostgreSqlContainer? _postgresContainer;
     private WebApplicationFactory<Program>? _factory;
     private HttpClient? _client;
     private LedgerDbContext? _context;
+    private IServiceScope? _serviceScope;
+    private readonly string _databaseName = $"JournalEntriesTest_{Guid.NewGuid()}";
     private Guid? _cashAccountId;
     private Guid? _revenueAccountId;
 
     public async Task InitializeAsync()
     {
-        // Start PostgreSQL container
-        _postgresContainer = new PostgreSqlBuilder()
-            .WithImage("postgres:16")
-            .WithDatabase("ledger_test")
-            .WithUsername("test_user")
-            .WithPassword("test_password")
-            .Build();
-
-        await _postgresContainer.StartAsync();
-
-        // Create WebApplicationFactory with test database
+        // Create WebApplicationFactory with in-memory test database
         _factory = new WebApplicationFactory<Program>()
             .WithWebHostBuilder(builder =>
             {
@@ -50,11 +46,12 @@ public class JournalEntriesControllerTests : IAsyncLifetime
                         services.Remove(descriptor);
                     }
 
-                    // Add test DbContext
-                    var connectionString = _postgresContainer.GetConnectionString();
+                    // Add test DbContext with in-memory database
+                    // Use fixed database name so test context and API context share the same database
                     services.AddDbContext<LedgerDbContext>(options =>
                     {
-                        options.UseNpgsql(connectionString);
+                        options.UseInMemoryDatabase(databaseName: _databaseName)
+                            .ConfigureWarnings(w => w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.InMemoryEventId.TransactionIgnoredWarning));
                     });
 
                     // Register repositories and services
@@ -64,22 +61,49 @@ public class JournalEntriesControllerTests : IAsyncLifetime
                     services.AddScoped<IRequestHashService, RequestHashService>();
                     services.AddScoped<IJournalEntryService, JournalEntryService>();
                 });
+
+                builder.ConfigureAppConfiguration((context, config) =>
+                {
+                    config.AddInMemoryCollection(new Dictionary<string, string?>
+                    {
+                        { "Jwt:Issuer", "https://ledger-api.test" },
+                        { "Jwt:Audience", "https://ledger-api.test" },
+                        { "Jwt:SecretKey", "TestSecretKey_ForIntegrationTests_Minimum32Characters" },
+                        { "Jwt:ClockSkewSeconds", "60" }
+                    });
+                });
             });
 
         _client = _factory.CreateClient();
 
-        // Get DbContext and run migrations
-        using var scope = _factory.Services.CreateScope();
-        _context = scope.ServiceProvider.GetRequiredService<LedgerDbContext>();
-        await _context.Database.MigrateAsync();
+        // Get DbContext and ensure database is created
+        // Create a scope that will be disposed in DisposeAsync
+        _serviceScope = _factory.Services.CreateScope();
+        _context = _serviceScope.ServiceProvider.GetRequiredService<LedgerDbContext>();
+        await _context.Database.EnsureCreatedAsync();
+
+        // Create a user and get token for authenticated requests
+        var email = "journal@example.com";
+        var password = "Password123";
+        var createUserResponse = await _client.PostAsJsonAsync("/api/users", new CreateUserRequest(email, password));
+        createUserResponse.EnsureSuccessStatusCode();
+        
+        var loginResponse = await _client.PostAsJsonAsync("/api/auth/login", new LoginRequest(email, password));
+        loginResponse.EnsureSuccessStatusCode();
+        var loginResult = await JsonHelper.ReadFromJsonAsync<LoginResponse>(loginResponse.Content);
+        Assert.NotNull(loginResult);
+        Assert.NotNull(loginResult.Token);
+        _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", loginResult.Token);
 
         // Create test accounts
         var cashResponse = await _client.PostAsJsonAsync("/api/accounts", new CreateAccountRequest("Cash", AccountType.Asset, true));
-        var cashAccount = await cashResponse.Content.ReadFromJsonAsync<AccountResponse>();
+        cashResponse.EnsureSuccessStatusCode();
+        var cashAccount = await cashResponse.Content.ReadFromJsonAsync<AccountResponse>(JsonHelper.GetJsonOptions());
         _cashAccountId = cashAccount?.Id;
 
         var revenueResponse = await _client.PostAsJsonAsync("/api/accounts", new CreateAccountRequest("Revenue", AccountType.Revenue, true));
-        var revenueAccount = await revenueResponse.Content.ReadFromJsonAsync<AccountResponse>();
+        revenueResponse.EnsureSuccessStatusCode();
+        var revenueAccount = await revenueResponse.Content.ReadFromJsonAsync<AccountResponse>(JsonHelper.GetJsonOptions());
         _revenueAccountId = revenueAccount?.Id;
     }
 
@@ -89,13 +113,17 @@ public class JournalEntriesControllerTests : IAsyncLifetime
         {
             await _context.DisposeAsync();
         }
-
-        _client?.Dispose();
-        _factory?.Dispose();
-
-        if (_postgresContainer != null)
+        if (_serviceScope != null)
         {
-            await _postgresContainer.DisposeAsync();
+            _serviceScope.Dispose();
+        }
+        if (_client != null)
+        {
+            _client.Dispose();
+        }
+        if (_factory != null)
+        {
+            await _factory.DisposeAsync();
         }
     }
 
@@ -116,11 +144,11 @@ public class JournalEntriesControllerTests : IAsyncLifetime
             });
 
         // Act
-        var response = await _client.PostAsJsonAsync("/api/journal-entries", request);
+        var response = await _client.PostAsJsonAsync("/api/JournalEntries", request);
 
         // Assert
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
-        var entry = await response.Content.ReadFromJsonAsync<JournalEntryResponse>();
+        var entry = await JsonHelper.ReadFromJsonAsync<JournalEntryResponse>(response.Content);
         Assert.NotNull(entry);
         Assert.Equal(2, entry.Lines.Count);
         Assert.False(entry.IdempotencyReplay);
@@ -141,7 +169,7 @@ public class JournalEntriesControllerTests : IAsyncLifetime
             });
 
         // Act
-        var response = await _client.PostAsJsonAsync("/api/journal-entries", request);
+        var response = await _client.PostAsJsonAsync("/api/JournalEntries", request);
 
         // Assert
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
@@ -164,7 +192,7 @@ public class JournalEntriesControllerTests : IAsyncLifetime
             });
 
         // Act
-        var response = await _client.PostAsJsonAsync("/api/journal-entries", request);
+        var response = await _client.PostAsJsonAsync("/api/JournalEntries", request);
 
         // Assert
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
@@ -190,17 +218,17 @@ public class JournalEntriesControllerTests : IAsyncLifetime
             });
 
         // Act - First request
-        var firstResponse = await _client.PostAsJsonAsync("/api/journal-entries", request);
+        var firstResponse = await _client.PostAsJsonAsync("/api/JournalEntries", request);
         Assert.Equal(HttpStatusCode.Created, firstResponse.StatusCode);
-        var firstEntry = await firstResponse.Content.ReadFromJsonAsync<JournalEntryResponse>();
+        var firstEntry = await JsonHelper.ReadFromJsonAsync<JournalEntryResponse>(firstResponse.Content);
         Assert.NotNull(firstEntry);
 
         // Act - Second request (idempotent replay)
-        var secondResponse = await _client.PostAsJsonAsync("/api/journal-entries", request);
+        var secondResponse = await _client.PostAsJsonAsync("/api/JournalEntries", request);
 
         // Assert
         Assert.Equal(HttpStatusCode.OK, secondResponse.StatusCode);
-        var secondEntry = await secondResponse.Content.ReadFromJsonAsync<JournalEntryResponse>();
+        var secondEntry = await JsonHelper.ReadFromJsonAsync<JournalEntryResponse>(secondResponse.Content);
         Assert.NotNull(secondEntry);
         Assert.True(secondEntry.IdempotencyReplay);
         Assert.Equal(firstEntry.Id, secondEntry.Id);
@@ -224,7 +252,7 @@ public class JournalEntriesControllerTests : IAsyncLifetime
             });
 
         // First request
-        await _client.PostAsJsonAsync("/api/journal-entries", request1);
+        await _client.PostAsJsonAsync("/api/JournalEntries", request1);
 
         // Second request with same ExternalId but different payload
         var request2 = new CreateJournalEntryRequest(
@@ -236,7 +264,7 @@ public class JournalEntriesControllerTests : IAsyncLifetime
             });
 
         // Act
-        var response = await _client.PostAsJsonAsync("/api/journal-entries", request2);
+        var response = await _client.PostAsJsonAsync("/api/JournalEntries", request2);
 
         // Assert
         Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
@@ -260,16 +288,17 @@ public class JournalEntriesControllerTests : IAsyncLifetime
                 new(_revenueAccountId.Value, LineDirection.Credit, 100.00m)
             });
 
-        var createResponse = await _client.PostAsJsonAsync("/api/journal-entries", request);
-        var createdEntry = await createResponse.Content.ReadFromJsonAsync<JournalEntryResponse>();
+        var createResponse = await _client.PostAsJsonAsync("/api/JournalEntries", request);
+        createResponse.EnsureSuccessStatusCode();
+        var createdEntry = await JsonHelper.ReadFromJsonAsync<JournalEntryResponse>(createResponse.Content);
         Assert.NotNull(createdEntry);
 
         // Act
-        var response = await _client.GetAsync($"/api/journal-entries/{createdEntry.Id}");
+        var response = await _client.GetAsync($"/api/JournalEntries/{createdEntry.Id}");
 
         // Assert
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        var entry = await response.Content.ReadFromJsonAsync<JournalEntryResponse>();
+        var entry = await JsonHelper.ReadFromJsonAsync<JournalEntryResponse>(response.Content);
         Assert.NotNull(entry);
         Assert.Equal(createdEntry.Id, entry.Id);
         Assert.Equal(2, entry.Lines.Count);
@@ -283,7 +312,7 @@ public class JournalEntriesControllerTests : IAsyncLifetime
         var nonExistentId = Guid.NewGuid();
 
         // Act
-        var response = await _client.GetAsync($"/api/journal-entries/{nonExistentId}");
+        var response = await _client.GetAsync($"/api/JournalEntries/{nonExistentId}");
 
         // Assert
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
@@ -306,11 +335,11 @@ public class JournalEntriesControllerTests : IAsyncLifetime
             });
 
         // Act
-        var response = await _client.PostAsJsonAsync("/api/journal-entries", request);
+        var response = await _client.PostAsJsonAsync("/api/JournalEntries", request);
 
         // Assert
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
-        var entry = await response.Content.ReadFromJsonAsync<JournalEntryResponse>();
+        var entry = await JsonHelper.ReadFromJsonAsync<JournalEntryResponse>(response.Content);
         Assert.NotNull(entry);
     }
 }

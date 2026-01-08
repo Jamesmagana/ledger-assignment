@@ -364,6 +364,3 @@ All errors use ProblemDetails format:
 2. Unit tests pass
 3. Integration tests pass with Testcontainers
 4. Duplicate name detection works (case-insensitive)
-5. Type immutability enforced
-6. Validation errors return 400 with reasonCode
-7. Duplicate errors return 409 with reasonCode

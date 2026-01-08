@@ -17,6 +17,11 @@ var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 builder.Services.AddControllers()
+    .AddJsonOptions(options =>
+    {
+        options.JsonSerializerOptions.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter());
+        options.JsonSerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase;
+    })
     .ConfigureApiBehaviorOptions(options =>
     {
         // Configure ProblemDetails for model validation errors
@@ -185,7 +190,9 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
                     PropertyNamingPolicy = JsonNamingPolicy.CamelCase
                 };
 
-                await context.Response.WriteAsJsonAsync(problemDetails, jsonOptions);
+                // Serialize manually to preserve the content type
+                var json = JsonSerializer.Serialize(problemDetails, jsonOptions);
+                await context.Response.WriteAsync(json);
             },
             OnAuthenticationFailed = context =>
             {

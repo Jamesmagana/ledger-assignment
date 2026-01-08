@@ -12,33 +12,24 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Configuration.Memory;
 using Microsoft.Extensions.DependencyInjection;
-using Testcontainers.PostgreSql;
 
 namespace Ledger.Tests.Integration.Api;
 
 public class AuthControllerTests : IAsyncLifetime
 {
-    private PostgreSqlContainer? _postgresContainer;
     private WebApplicationFactory<Program>? _factory;
     private HttpClient? _client;
     private LedgerDbContext? _context;
+    private IServiceScope? _serviceScope;
     private string? _testIssuer;
     private string? _testAudience;
     private string? _testSecretKey;
+    private readonly string _databaseName = $"AuthControllerTest_{Guid.NewGuid()}";
 
     public async Task InitializeAsync()
     {
-        // Start PostgreSQL container
-        _postgresContainer = new PostgreSqlBuilder()
-            .WithImage("postgres:16")
-            .WithDatabase("ledger_test")
-            .WithUsername("test_user")
-            .WithPassword("test_password")
-            .Build();
-
-        await _postgresContainer.StartAsync();
-
         // Test JWT settings
         _testIssuer = "https://ledger-api.test";
         _testAudience = "https://ledger-api.test";
@@ -58,11 +49,12 @@ public class AuthControllerTests : IAsyncLifetime
                         services.Remove(descriptor);
                     }
 
-                    // Add test DbContext
-                    var connectionString = _postgresContainer.GetConnectionString();
+                    // Add test DbContext with in-memory database
+                    // Use fixed database name so test context and API context share the same database
                     services.AddDbContext<LedgerDbContext>(options =>
                     {
-                        options.UseNpgsql(connectionString);
+                        options.UseInMemoryDatabase(databaseName: _databaseName)
+                            .ConfigureWarnings(w => w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.InMemoryEventId.TransactionIgnoredWarning));
                     });
 
                     // Register repositories and services
@@ -86,10 +78,11 @@ public class AuthControllerTests : IAsyncLifetime
 
         _client = _factory.CreateClient();
 
-        // Get DbContext and run migrations
-        using var scope = _factory.Services.CreateScope();
-        _context = scope.ServiceProvider.GetRequiredService<LedgerDbContext>();
-        await _context.Database.MigrateAsync();
+        // Get DbContext and ensure database is created
+        // Create a scope that will be disposed in DisposeAsync
+        _serviceScope = _factory.Services.CreateScope();
+        _context = _serviceScope.ServiceProvider.GetRequiredService<LedgerDbContext>();
+        await _context.Database.EnsureCreatedAsync();
     }
 
     [Fact]
@@ -228,6 +221,8 @@ public class AuthControllerTests : IAsyncLifetime
         response.EnsureSuccessStatusCode();
 
         // Verify LastLoginAt is updated
+        // Reload user from database to ensure we have the latest state
+        _context.ChangeTracker.Clear();
         var dbUserAfter = await _context.Users.FindAsync(user.Id);
         Assert.NotNull(dbUserAfter);
         Assert.NotNull(dbUserAfter.LastLoginAt);
@@ -247,7 +242,9 @@ public class AuthControllerTests : IAsyncLifetime
         Assert.NotNull(user);
 
         // Simulate failed login attempts
-        var dbUser = await _context!.Users.FirstOrDefaultAsync(u => u.Id == user.Id);
+        // Reload user from database to ensure we have the latest state
+        _context!.ChangeTracker.Clear();
+        var dbUser = await _context.Users.FirstOrDefaultAsync(u => u.Id == user.Id);
         Assert.NotNull(dbUser);
         var userWithFailures = dbUser.WithFailedLoginAttempts(3);
         _context.Entry(dbUser).CurrentValues.SetValues(new
@@ -272,6 +269,8 @@ public class AuthControllerTests : IAsyncLifetime
         response.EnsureSuccessStatusCode();
 
         // Verify FailedLoginAttempts is reset to 0
+        // Reload user from database to ensure we have the latest state
+        _context.ChangeTracker.Clear();
         var dbUserAfter = await _context.Users.FindAsync(user.Id);
         Assert.NotNull(dbUserAfter);
         Assert.Equal(0, dbUserAfter.FailedLoginAttempts);
@@ -297,7 +296,9 @@ public class AuthControllerTests : IAsyncLifetime
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
 
         // Verify FailedLoginAttempts is incremented
-        var dbUser = await _context!.Users.FindAsync(user.Id);
+        // Reload user from database to ensure we have the latest state
+        _context!.ChangeTracker.Clear();
+        var dbUser = await _context.Users.FindAsync(user.Id);
         Assert.NotNull(dbUser);
         Assert.True(dbUser.FailedLoginAttempts > 0);
     }
@@ -336,6 +337,14 @@ public class AuthControllerTests : IAsyncLifetime
 
     public async Task DisposeAsync()
     {
+        if (_context != null)
+        {
+            await _context.DisposeAsync();
+        }
+        if (_serviceScope != null)
+        {
+            _serviceScope.Dispose();
+        }
         if (_client != null)
         {
             _client.Dispose();
@@ -343,10 +352,6 @@ public class AuthControllerTests : IAsyncLifetime
         if (_factory != null)
         {
             await _factory.DisposeAsync();
-        }
-        if (_postgresContainer != null)
-        {
-            await _postgresContainer.DisposeAsync();
         }
     }
 }

@@ -1,44 +1,31 @@
 using Ledger.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
-using Testcontainers.PostgreSql;
 
 namespace Ledger.Tests.Integration;
 
 /// <summary>
-/// Base class for integration tests using PostgreSQL Testcontainers.
+/// Base class for integration tests using in-memory database.
 /// </summary>
 public abstract class TestBase : IAsyncLifetime
 {
-    protected PostgreSqlContainer? _postgresContainer;
     protected LedgerDbContext? _context;
     protected IServiceProvider? _serviceProvider;
 
     public async Task InitializeAsync()
     {
-        // Start PostgreSQL container
-        _postgresContainer = new PostgreSqlBuilder()
-            .WithImage("postgres:16")
-            .WithDatabase("ledger_test")
-            .WithUsername("test_user")
-            .WithPassword("test_password")
-            .Build();
-
-        await _postgresContainer.StartAsync();
-
-        // Create DbContext
-        var connectionString = _postgresContainer.GetConnectionString();
+        // Create DbContext with in-memory database
         var services = new ServiceCollection();
         services.AddDbContext<LedgerDbContext>(options =>
         {
-            options.UseNpgsql(connectionString);
+            options.UseInMemoryDatabase(databaseName: $"TestBase_{Guid.NewGuid()}");
         });
 
         _serviceProvider = services.BuildServiceProvider();
         _context = _serviceProvider.GetRequiredService<LedgerDbContext>();
 
-        // Run migrations
-        await _context.Database.MigrateAsync();
+        // Ensure database is created
+        await _context.Database.EnsureCreatedAsync();
     }
 
     public async Task DisposeAsync()
@@ -51,11 +38,6 @@ public abstract class TestBase : IAsyncLifetime
         if (_serviceProvider is IDisposable disposable)
         {
             disposable.Dispose();
-        }
-
-        if (_postgresContainer != null)
-        {
-            await _postgresContainer.DisposeAsync();
         }
     }
 }

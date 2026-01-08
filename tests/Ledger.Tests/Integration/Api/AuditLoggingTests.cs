@@ -8,37 +8,32 @@ using Ledger.Api.DTOs.JournalEntries;
 using Ledger.Api.DTOs.Users;
 using Ledger.Domain.Enums;
 using Ledger.Infrastructure.Data;
+using Ledger.Infrastructure.Data.Interceptors;
+using Ledger.Infrastructure.Data.Services;
 using Ledger.Tests.Helpers;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Configuration.Memory;
 using Microsoft.Extensions.DependencyInjection;
-using Testcontainers.PostgreSql;
 using Xunit;
 
 namespace Ledger.Tests.Integration.Api;
 
 public class AuditLoggingTests : IAsyncLifetime
 {
-    private PostgreSqlContainer? _postgresContainer;
     private WebApplicationFactory<Program>? _factory;
     private HttpClient? _client;
     private LedgerDbContext? _context;
+    private IServiceScope? _serviceScope;
+    private readonly string _databaseName = $"AuditLoggingTest_{Guid.NewGuid()}";
     private string? _testIssuer;
     private string? _testAudience;
     private string? _testSecretKey;
 
     public async Task InitializeAsync()
     {
-        // Start PostgreSQL container
-        _postgresContainer = new PostgreSqlBuilder()
-            .WithImage("postgres:16")
-            .WithDatabase("ledger_test")
-            .WithUsername("test_user")
-            .WithPassword("test_password")
-            .Build();
-
-        await _postgresContainer.StartAsync();
-
         // Test JWT settings
         _testIssuer = "https://ledger-api.test";
         _testAudience = "https://ledger-api.test";
@@ -58,11 +53,19 @@ public class AuditLoggingTests : IAsyncLifetime
                         services.Remove(descriptor);
                     }
 
-                    // Add test DbContext
-                    var connectionString = _postgresContainer.GetConnectionString();
-                    services.AddDbContext<LedgerDbContext>(options =>
+                    // Add test DbContext with in-memory database
+                    // Use fixed database name so test context and API context share the same database
+                    services.AddDbContext<LedgerDbContext>((sp, options) =>
                     {
-                        options.UseNpgsql(connectionString);
+                        options.UseInMemoryDatabase(databaseName: _databaseName)
+                            .ConfigureWarnings(w => w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.InMemoryEventId.TransactionIgnoredWarning));
+                        
+                        // Add audit logging interceptor (required for audit logs to be created)
+                        var httpContextAccessor = sp.GetRequiredService<IHttpContextAccessor>();
+                        var userContextService = sp.GetRequiredService<Ledger.Infrastructure.Data.Services.IUserContextService>();
+                        options.AddInterceptors(new Ledger.Infrastructure.Data.Interceptors.AuditLoggingInterceptor(
+                            httpContextAccessor,
+                            userContextService));
                     });
                 });
 
@@ -80,26 +83,34 @@ public class AuditLoggingTests : IAsyncLifetime
 
         _client = _factory.CreateClient();
 
-        // Get DbContext and run migrations
-        using var scope = _factory.Services.CreateScope();
-        _context = scope.ServiceProvider.GetRequiredService<LedgerDbContext>();
-        await _context.Database.MigrateAsync();
+        // Get DbContext and ensure database is created
+        // Create a scope that will be disposed in DisposeAsync
+        _serviceScope = _factory.Services.CreateScope();
+        _context = _serviceScope.ServiceProvider.GetRequiredService<LedgerDbContext>();
+        await _context.Database.EnsureCreatedAsync();
     }
 
     [Fact]
     public async Task CreateAccount_CreatesAuditLog()
     {
-        // Arrange
+        // Arrange - Clear headers first
+        _client!.DefaultRequestHeaders.Remove("X-Correlation-Id");
+        _client.DefaultRequestHeaders.Remove("Authorization");
+        
         var correlationId = Guid.NewGuid().ToString();
-        _client!.DefaultRequestHeaders.Add("X-Correlation-Id", correlationId);
+        _client.DefaultRequestHeaders.Add("X-Correlation-Id", correlationId);
 
         // Create a user and get token
-        var email = "audit@example.com";
+        var email = "audit1@example.com";
         var password = "Password123";
-        await _client.PostAsJsonAsync("/api/users", new CreateUserRequest(email, password));
+        var createUserResponse = await _client.PostAsJsonAsync("/api/users", new CreateUserRequest(email, password));
+        createUserResponse.EnsureSuccessStatusCode();
+
         var loginResponse = await _client.PostAsJsonAsync("/api/auth/login", new LoginRequest(email, password));
-        var loginResult = await loginResponse.Content.ReadFromJsonAsync<LoginResponse>();
+        loginResponse.EnsureSuccessStatusCode();
+        var loginResult = await JsonHelper.ReadFromJsonAsync<LoginResponse>(loginResponse.Content);
         Assert.NotNull(loginResult);
+        Assert.NotNull(loginResult.Token);
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", loginResult.Token);
 
         var request = new CreateAccountRequest("Audit Test Account", AccountType.Asset, true);
@@ -107,11 +118,14 @@ public class AuditLoggingTests : IAsyncLifetime
         // Act
         var response = await _client.PostAsJsonAsync("/api/accounts", request);
         response.EnsureSuccessStatusCode();
-        var account = await response.Content.ReadFromJsonAsync<AccountResponse>();
+        var account = await JsonHelper.ReadFromJsonAsync<AccountResponse>(response.Content);
         Assert.NotNull(account);
 
         // Assert - Check audit log was created
-        var auditLogs = await _context!.AuditLogs
+        // Create a fresh context to ensure we see the latest changes
+        using var assertScope = _factory!.Services.CreateScope();
+        var assertContext = assertScope.ServiceProvider.GetRequiredService<LedgerDbContext>();
+        var auditLogs = await assertContext.AuditLogs
             .Where(a => a.EntityName == "Account" && a.EntityId == account.Id)
             .ToListAsync();
 
@@ -132,23 +146,31 @@ public class AuditLoggingTests : IAsyncLifetime
     [Fact]
     public async Task UpdateAccount_CreatesAuditLog()
     {
-        // Arrange
+        // Arrange - Clear headers first
+        _client!.DefaultRequestHeaders.Remove("X-Correlation-Id");
+        _client.DefaultRequestHeaders.Remove("Authorization");
+        
         var correlationId = Guid.NewGuid().ToString();
-        _client!.DefaultRequestHeaders.Add("X-Correlation-Id", correlationId);
+        _client.DefaultRequestHeaders.Add("X-Correlation-Id", correlationId);
 
         // Create a user and get token
-        var email = "audit@example.com";
+        var email = "audit2@example.com";
         var password = "Password123";
-        await _client.PostAsJsonAsync("/api/users", new CreateUserRequest(email, password));
+        var createUserResponse = await _client.PostAsJsonAsync("/api/users", new CreateUserRequest(email, password));
+        createUserResponse.EnsureSuccessStatusCode();
+
         var loginResponse = await _client.PostAsJsonAsync("/api/auth/login", new LoginRequest(email, password));
-        var loginResult = await loginResponse.Content.ReadFromJsonAsync<LoginResponse>();
+        loginResponse.EnsureSuccessStatusCode();
+        var loginResult = await JsonHelper.ReadFromJsonAsync<LoginResponse>(loginResponse.Content);
         Assert.NotNull(loginResult);
+        Assert.NotNull(loginResult.Token);
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", loginResult.Token);
 
         // Create account
         var createRequest = new CreateAccountRequest("Update Test Account", AccountType.Asset, true);
         var createResponse = await _client.PostAsJsonAsync("/api/accounts", createRequest);
-        var account = await createResponse.Content.ReadFromJsonAsync<AccountResponse>();
+        createResponse.EnsureSuccessStatusCode();
+        var account = await JsonHelper.ReadFromJsonAsync<AccountResponse>(createResponse.Content);
         Assert.NotNull(account);
 
         // Act - Update account
@@ -157,7 +179,10 @@ public class AuditLoggingTests : IAsyncLifetime
         updateResponse.EnsureSuccessStatusCode();
 
         // Assert - Check audit log was created for update
-        var auditLogs = await _context!.AuditLogs
+        // Create a fresh context to ensure we see the latest changes
+        using var assertScope = _factory!.Services.CreateScope();
+        var assertContext = assertScope.ServiceProvider.GetRequiredService<LedgerDbContext>();
+        var auditLogs = await assertContext.AuditLogs
             .Where(a => a.EntityName == "Account" && a.EntityId == account.Id && a.Action == "UPDATE")
             .ToListAsync();
 
@@ -173,17 +198,24 @@ public class AuditLoggingTests : IAsyncLifetime
     [Fact]
     public async Task PostJournalEntry_CreatesAuditLog()
     {
-        // Arrange
+        // Arrange - Clear headers first
+        _client!.DefaultRequestHeaders.Remove("X-Correlation-Id");
+        _client.DefaultRequestHeaders.Remove("Authorization");
+        
         var correlationId = Guid.NewGuid().ToString();
-        _client!.DefaultRequestHeaders.Add("X-Correlation-Id", correlationId);
+        _client.DefaultRequestHeaders.Add("X-Correlation-Id", correlationId);
 
         // Create a user and get token
-        var email = "audit@example.com";
+        var email = "audit3@example.com";
         var password = "Password123";
-        await _client.PostAsJsonAsync("/api/users", new CreateUserRequest(email, password));
+        var createUserResponse = await _client.PostAsJsonAsync("/api/users", new CreateUserRequest(email, password));
+        createUserResponse.EnsureSuccessStatusCode();
+
         var loginResponse = await _client.PostAsJsonAsync("/api/auth/login", new LoginRequest(email, password));
-        var loginResult = await loginResponse.Content.ReadFromJsonAsync<LoginResponse>();
+        loginResponse.EnsureSuccessStatusCode();
+        var loginResult = await JsonHelper.ReadFromJsonAsync<LoginResponse>(loginResponse.Content);
         Assert.NotNull(loginResult);
+        Assert.NotNull(loginResult.Token);
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", loginResult.Token);
 
         // Create accounts
@@ -191,21 +223,24 @@ public class AuditLoggingTests : IAsyncLifetime
         var revenueAccount = await CreateAccountAsync("Revenue", AccountType.Revenue);
 
         var request = new CreateJournalEntryRequest(
-            externalId: "EXT-001",
-            lines: new List<CreateJournalEntryLineRequest>
+            ExternalId: "EXT-001",
+            Lines: new List<CreateJournalEntryLineRequest>
             {
                 new(cashAccount.Id, LineDirection.Debit, 1000.00m),
                 new(revenueAccount.Id, LineDirection.Credit, 1000.00m)
             });
 
         // Act
-        var response = await _client.PostAsJsonAsync("/api/journal-entries", request);
+        var response = await _client.PostAsJsonAsync("/api/JournalEntries", request);
         response.EnsureSuccessStatusCode();
-        var journalEntry = await response.Content.ReadFromJsonAsync<JournalEntryResponse>();
+        var journalEntry = await JsonHelper.ReadFromJsonAsync<JournalEntryResponse>(response.Content);
         Assert.NotNull(journalEntry);
 
         // Assert - Check audit log was created
-        var auditLogs = await _context!.AuditLogs
+        // Create a fresh context to ensure we see the latest changes
+        using var assertScope = _factory!.Services.CreateScope();
+        var assertContext = assertScope.ServiceProvider.GetRequiredService<LedgerDbContext>();
+        var auditLogs = await assertContext.AuditLogs
             .Where(a => a.EntityName == "JournalEntry" && a.EntityId == journalEntry.Id)
             .ToListAsync();
 
@@ -219,20 +254,26 @@ public class AuditLoggingTests : IAsyncLifetime
     [Fact]
     public async Task CreateUser_CreatesAuditLog_ExcludesPasswordHash()
     {
-        // Arrange
+        // Arrange - Clear headers first
+        _client!.DefaultRequestHeaders.Remove("X-Correlation-Id");
+        _client.DefaultRequestHeaders.Remove("Authorization");
+        
         var correlationId = Guid.NewGuid().ToString();
-        _client!.DefaultRequestHeaders.Add("X-Correlation-Id", correlationId);
+        _client.DefaultRequestHeaders.Add("X-Correlation-Id", correlationId);
 
         var request = new CreateUserRequest("audituser@example.com", "Password123");
 
         // Act
         var response = await _client.PostAsJsonAsync("/api/users", request);
         response.EnsureSuccessStatusCode();
-        var user = await response.Content.ReadFromJsonAsync<UserResponse>();
+        var user = await JsonHelper.ReadFromJsonAsync<UserResponse>(response.Content);
         Assert.NotNull(user);
 
         // Assert - Check audit log was created
-        var auditLogs = await _context!.AuditLogs
+        // Create a fresh context to ensure we see the latest changes
+        using var assertScope = _factory!.Services.CreateScope();
+        var assertContext = assertScope.ServiceProvider.GetRequiredService<LedgerDbContext>();
+        var auditLogs = await assertContext.AuditLogs
             .Where(a => a.EntityName == "User" && a.EntityId == user.Id)
             .ToListAsync();
 
@@ -253,22 +294,32 @@ public class AuditLoggingTests : IAsyncLifetime
     [Fact]
     public async Task Login_CreatesAuditLog()
     {
-        // Arrange
+        // Arrange - Clear headers first
+        _client!.DefaultRequestHeaders.Remove("X-Correlation-Id");
+        _client.DefaultRequestHeaders.Remove("Authorization");
+        
         var correlationId = Guid.NewGuid().ToString();
-        _client!.DefaultRequestHeaders.Add("X-Correlation-Id", correlationId);
+        _client.DefaultRequestHeaders.Add("X-Correlation-Id", correlationId);
 
         var email = "loginuser@example.com";
         var password = "Password123";
-        await _client.PostAsJsonAsync("/api/users", new CreateUserRequest(email, password));
+        var createUserResponse = await _client.PostAsJsonAsync("/api/users", new CreateUserRequest(email, password));
+        createUserResponse.EnsureSuccessStatusCode();
 
         // Act
         var response = await _client.PostAsJsonAsync("/api/auth/login", new LoginRequest(email, password));
         response.EnsureSuccessStatusCode();
-        var loginResult = await response.Content.ReadFromJsonAsync<LoginResponse>();
+        var loginResult = await JsonHelper.ReadFromJsonAsync<LoginResponse>(response.Content);
         Assert.NotNull(loginResult);
 
         // Assert - Check audit log was created for login
-        var auditLogs = await _context!.AuditLogs
+        // Wait a bit to ensure the audit log is saved (InMemory database should be immediate, but ensure it's persisted)
+        await Task.Delay(100);
+        // Create a fresh context to ensure we see the latest changes
+        using var assertScope = _factory!.Services.CreateScope();
+        var assertContext = assertScope.ServiceProvider.GetRequiredService<LedgerDbContext>();
+        assertContext.ChangeTracker.Clear(); // Clear change tracker to ensure fresh data
+        var auditLogs = await assertContext.AuditLogs
             .Where(a => a.EntityName == "User" && a.EntityId == loginResult.UserId && a.Action == "LOGIN")
             .ToListAsync();
 
@@ -283,28 +334,37 @@ public class AuditLoggingTests : IAsyncLifetime
     [Fact]
     public async Task AuditLogs_IncludeCorrelationId()
     {
-        // Arrange
+        // Arrange - Clear headers first
+        _client!.DefaultRequestHeaders.Remove("X-Correlation-Id");
+        _client.DefaultRequestHeaders.Remove("Authorization");
+        
         var correlationId = Guid.NewGuid().ToString();
-        _client!.DefaultRequestHeaders.Add("X-Correlation-Id", correlationId);
+        _client.DefaultRequestHeaders.Add("X-Correlation-Id", correlationId);
 
         // Create a user and get token
-        var email = "correlation@example.com";
+        var email = "audit4@example.com";
         var password = "Password123";
-        await _client.PostAsJsonAsync("/api/users", new CreateUserRequest(email, password));
+        var createUserResponse = await _client.PostAsJsonAsync("/api/users", new CreateUserRequest(email, password));
+        createUserResponse.EnsureSuccessStatusCode();
+
         var loginResponse = await _client.PostAsJsonAsync("/api/auth/login", new LoginRequest(email, password));
-        var loginResult = await loginResponse.Content.ReadFromJsonAsync<LoginResponse>();
+        loginResponse.EnsureSuccessStatusCode();
+        var loginResult = await JsonHelper.ReadFromJsonAsync<LoginResponse>(loginResponse.Content);
         Assert.NotNull(loginResult);
+        Assert.NotNull(loginResult.Token);
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", loginResult.Token);
 
         // Create account
         var request = new CreateAccountRequest("Correlation Test", AccountType.Asset, true);
         var response = await _client.PostAsJsonAsync("/api/accounts", request);
         response.EnsureSuccessStatusCode();
-        var account = await response.Content.ReadFromJsonAsync<AccountResponse>();
+        var account = await JsonHelper.ReadFromJsonAsync<AccountResponse>(response.Content);
         Assert.NotNull(account);
 
-        // Assert
-        var auditLog = await _context!.AuditLogs
+        // Assert - Create a fresh context to ensure we see the latest changes
+        using var assertScope = _factory!.Services.CreateScope();
+        var assertContext = assertScope.ServiceProvider.GetRequiredService<LedgerDbContext>();
+        var auditLog = await assertContext.AuditLogs
             .FirstOrDefaultAsync(a => a.EntityName == "Account" && a.EntityId == account.Id);
 
         Assert.NotNull(auditLog);
@@ -314,28 +374,37 @@ public class AuditLoggingTests : IAsyncLifetime
     [Fact]
     public async Task AuditLogs_IncludeUserId_WhenAuthenticated()
     {
-        // Arrange
+        // Arrange - Clear headers first
+        _client!.DefaultRequestHeaders.Remove("X-Correlation-Id");
+        _client.DefaultRequestHeaders.Remove("Authorization");
+        
         var correlationId = Guid.NewGuid().ToString();
-        _client!.DefaultRequestHeaders.Add("X-Correlation-Id", correlationId);
+        _client.DefaultRequestHeaders.Add("X-Correlation-Id", correlationId);
 
         // Create a user and get token
-        var email = "userid@example.com";
+        var email = "audit5@example.com";
         var password = "Password123";
-        await _client.PostAsJsonAsync("/api/users", new CreateUserRequest(email, password));
+        var createUserResponse = await _client.PostAsJsonAsync("/api/users", new CreateUserRequest(email, password));
+        createUserResponse.EnsureSuccessStatusCode();
+
         var loginResponse = await _client.PostAsJsonAsync("/api/auth/login", new LoginRequest(email, password));
-        var loginResult = await loginResponse.Content.ReadFromJsonAsync<LoginResponse>();
+        loginResponse.EnsureSuccessStatusCode();
+        var loginResult = await JsonHelper.ReadFromJsonAsync<LoginResponse>(loginResponse.Content);
         Assert.NotNull(loginResult);
+        Assert.NotNull(loginResult.Token);
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", loginResult.Token);
 
         // Create account
         var request = new CreateAccountRequest("User ID Test", AccountType.Asset, true);
         var response = await _client.PostAsJsonAsync("/api/accounts", request);
         response.EnsureSuccessStatusCode();
-        var account = await response.Content.ReadFromJsonAsync<AccountResponse>();
+        var account = await JsonHelper.ReadFromJsonAsync<AccountResponse>(response.Content);
         Assert.NotNull(account);
 
-        // Assert
-        var auditLog = await _context!.AuditLogs
+        // Assert - Create a fresh context to ensure we see the latest changes
+        using var assertScope = _factory!.Services.CreateScope();
+        var assertContext = assertScope.ServiceProvider.GetRequiredService<LedgerDbContext>();
+        var auditLog = await assertContext.AuditLogs
             .FirstOrDefaultAsync(a => a.EntityName == "Account" && a.EntityId == account.Id);
 
         Assert.NotNull(auditLog);
@@ -345,31 +414,41 @@ public class AuditLoggingTests : IAsyncLifetime
     [Fact]
     public async Task AuditLogs_WrittenInSameTransaction()
     {
-        // Arrange
+        // Arrange - Clear headers first
+        _client!.DefaultRequestHeaders.Remove("X-Correlation-Id");
+        _client.DefaultRequestHeaders.Remove("Authorization");
+        
         var correlationId = Guid.NewGuid().ToString();
-        _client!.DefaultRequestHeaders.Add("X-Correlation-Id", correlationId);
+        _client.DefaultRequestHeaders.Add("X-Correlation-Id", correlationId);
 
         // Create a user and get token
-        var email = "transaction@example.com";
+        var email = "audit6@example.com";
         var password = "Password123";
-        await _client.PostAsJsonAsync("/api/users", new CreateUserRequest(email, password));
+        var createUserResponse = await _client.PostAsJsonAsync("/api/users", new CreateUserRequest(email, password));
+        createUserResponse.EnsureSuccessStatusCode();
+
         var loginResponse = await _client.PostAsJsonAsync("/api/auth/login", new LoginRequest(email, password));
-        var loginResult = await loginResponse.Content.ReadFromJsonAsync<LoginResponse>();
+        loginResponse.EnsureSuccessStatusCode();
+        var loginResult = await JsonHelper.ReadFromJsonAsync<LoginResponse>(loginResponse.Content);
         Assert.NotNull(loginResult);
+        Assert.NotNull(loginResult.Token);
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", loginResult.Token);
 
         // Create account
         var request = new CreateAccountRequest("Transaction Test", AccountType.Asset, true);
         var response = await _client.PostAsJsonAsync("/api/accounts", request);
         response.EnsureSuccessStatusCode();
-        var account = await response.Content.ReadFromJsonAsync<AccountResponse>();
+        var account = await JsonHelper.ReadFromJsonAsync<AccountResponse>(response.Content);
         Assert.NotNull(account);
 
         // Assert - Both account and audit log should exist
-        var dbAccount = await _context!.Accounts.FindAsync(account.Id);
+        // Create a fresh context to ensure we see the latest changes
+        using var assertScope = _factory!.Services.CreateScope();
+        var assertContext = assertScope.ServiceProvider.GetRequiredService<LedgerDbContext>();
+        var dbAccount = await assertContext.Accounts.FindAsync(account.Id);
         Assert.NotNull(dbAccount);
 
-        var auditLog = await _context.AuditLogs
+        var auditLog = await assertContext.AuditLogs
             .FirstOrDefaultAsync(a => a.EntityName == "Account" && a.EntityId == account.Id);
         Assert.NotNull(auditLog);
     }
@@ -379,12 +458,20 @@ public class AuditLoggingTests : IAsyncLifetime
         var request = new CreateAccountRequest(name, type, true);
         var response = await _client!.PostAsJsonAsync("/api/accounts", request);
         response.EnsureSuccessStatusCode();
-        return await response.Content.ReadFromJsonAsync<AccountResponse>()
+        return await response.Content.ReadFromJsonAsync<AccountResponse>(JsonHelper.GetJsonOptions())
             ?? throw new InvalidOperationException("Failed to create account");
     }
 
     public async Task DisposeAsync()
     {
+        if (_context != null)
+        {
+            await _context.DisposeAsync();
+        }
+        if (_serviceScope != null)
+        {
+            _serviceScope.Dispose();
+        }
         if (_client != null)
         {
             _client.Dispose();
@@ -392,10 +479,6 @@ public class AuditLoggingTests : IAsyncLifetime
         if (_factory != null)
         {
             await _factory.DisposeAsync();
-        }
-        if (_postgresContainer != null)
-        {
-            await _postgresContainer.DisposeAsync();
         }
     }
 }

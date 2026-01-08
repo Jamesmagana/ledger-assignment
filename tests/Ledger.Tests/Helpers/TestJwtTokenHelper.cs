@@ -25,6 +25,17 @@ public static class TestJwtTokenHelper
         var credentials = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
 
         var tokenClaims = claims?.ToList() ?? new List<Claim>();
+        
+        // Add default claims if none provided (matching JwtTokenService format)
+        // Check if standard claims already exist
+        var hasSub = tokenClaims.Any(c => c.Type == "sub" || c.Type == ClaimTypes.NameIdentifier);
+        if (!hasSub)
+        {
+            var userId = Guid.NewGuid().ToString();
+            tokenClaims.Add(new Claim("sub", userId));
+            tokenClaims.Add(new Claim("email", "test@example.com"));
+            tokenClaims.Add(new Claim("jti", Guid.NewGuid().ToString()));
+        }
 
         var token = new JwtSecurityToken(
             issuer: issuer,

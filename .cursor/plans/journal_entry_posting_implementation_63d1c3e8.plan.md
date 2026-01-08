@@ -538,6 +538,39 @@ catch
 
 
 
+### Entity ID Generation Fix
+
+**Issue:** When creating `JournalEntryLine` instances, the code was using `journalEntry.Id` before the `JournalEntry` was saved to the database. Since `BaseEntity.Id` defaults to `Guid.Empty` and is only set by EF Core when saving, this caused a validation error: "Journal entry ID cannot be empty."**Root Cause:** The `JournalEntryLine` constructor validates that `journalEntryId` is not `Guid.Empty`, but the `JournalEntry.Id` property is `Guid.Empty` until EF Core assigns it during `SaveChangesAsync`.**Solution:** Generate the `JournalEntry` ID explicitly before creating the lines, using `Guid.NewGuid()`, and set it via object initializer. This ensures the ID is available when creating `JournalEntryLine` instances.**Implementation:**
+
+```csharp
+// Generate ID for journal entry before creating lines
+// This ensures the ID is available when creating JournalEntryLine instances
+var journalEntryId = Guid.NewGuid();
+
+var journalEntry = new JournalEntry(
+    request.ExternalId,
+    requestHash,
+    postedAt)
+{
+    Id = journalEntryId
+};
+
+var journalEntryLines = validatedLines.Select(line =>
+    new JournalEntryLine(
+        journalEntryId,  // Use the pre-generated ID
+        line.AccountId,
+        line.Direction,
+        line.Amount)
+).ToList();
+```
+
+**Notes:**
+
+- EF Core will use the manually set ID instead of generating one
+- This maintains the atomic transaction pattern (ID is known before lines are created)
+- The `init` accessor on `BaseEntity.Id` allows setting it via object initializer
+- This fix ensures domain validation in `JournalEntryLine` constructor passes
+
 ## Verification Steps
 
 1. All endpoints compile and run
@@ -555,5 +588,3 @@ catch
 
 - **Decimal Precision:** Must use exact decimal comparison, no rounding tolerance
 - **Concurrency Safety:** No pre-check patterns, rely on DB unique constraint
-- **Atomicity:** Entry + lines must be in single transaction
-- **Idempotency:** Same ExternalId + same hash = replay, different hash = conflict

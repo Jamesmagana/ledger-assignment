@@ -274,5 +274,3 @@ tests/Ledger.Tests/
 3. All errors include correlationId
 4. Status codes mapped correctly (400, 409, 401, etc.)
 5. Error format consistent across all endpoints
-6. Tests verify middleware behavior
-7. CorrelationId propagates correctly

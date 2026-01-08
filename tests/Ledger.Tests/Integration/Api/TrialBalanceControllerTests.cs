@@ -1,26 +1,33 @@
 using System.Net;
+using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using Ledger.Api.DTOs.Accounts;
+using Ledger.Api.DTOs.Auth;
 using Ledger.Api.DTOs.JournalEntries;
 using Ledger.Api.DTOs.Reports;
+using Ledger.Api.DTOs.Users;
 using Ledger.Application.Repositories;
 using Ledger.Application.Services;
 using Ledger.Domain.Enums;
 using Ledger.Infrastructure.Data;
 using Ledger.Infrastructure.Repositories;
+using Ledger.Tests.Helpers;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Configuration.Memory;
 using Microsoft.Extensions.DependencyInjection;
-using Testcontainers.PostgreSql;
 
 namespace Ledger.Tests.Integration.Api;
 
 public class TrialBalanceControllerTests : IAsyncLifetime
 {
-    private PostgreSqlContainer? _postgresContainer;
     private WebApplicationFactory<Program>? _factory;
     private HttpClient? _client;
     private LedgerDbContext? _context;
+    private IServiceScope? _serviceScope;
+    private readonly string _databaseName = $"TrialBalanceTest_{Guid.NewGuid()}";
     private Guid? _cashAccountId;
     private Guid? _revenueAccountId;
     private Guid? _expenseAccountId;
@@ -28,17 +35,7 @@ public class TrialBalanceControllerTests : IAsyncLifetime
 
     public async Task InitializeAsync()
     {
-        // Start PostgreSQL container
-        _postgresContainer = new PostgreSqlBuilder()
-            .WithImage("postgres:16")
-            .WithDatabase("ledger_test")
-            .WithUsername("test_user")
-            .WithPassword("test_password")
-            .Build();
-
-        await _postgresContainer.StartAsync();
-
-        // Create WebApplicationFactory with test database
+        // Create WebApplicationFactory with in-memory test database
         _factory = new WebApplicationFactory<Program>()
             .WithWebHostBuilder(builder =>
             {
@@ -52,11 +49,12 @@ public class TrialBalanceControllerTests : IAsyncLifetime
                         services.Remove(descriptor);
                     }
 
-                    // Add test DbContext
-                    var connectionString = _postgresContainer.GetConnectionString();
+                    // Add test DbContext with in-memory database
+                    // Use fixed database name so test context and API context share the same database
                     services.AddDbContext<LedgerDbContext>(options =>
                     {
-                        options.UseNpgsql(connectionString);
+                        options.UseInMemoryDatabase(databaseName: _databaseName)
+                            .ConfigureWarnings(w => w.Ignore(InMemoryEventId.TransactionIgnoredWarning));
                     });
 
                     // Register repositories and services
@@ -68,30 +66,59 @@ public class TrialBalanceControllerTests : IAsyncLifetime
                     services.AddScoped<IJournalEntryService, JournalEntryService>();
                     services.AddScoped<ITrialBalanceService, TrialBalanceService>();
                 });
+
+                builder.ConfigureAppConfiguration((context, config) =>
+                {
+                    config.AddInMemoryCollection(new Dictionary<string, string?>
+                    {
+                        { "Jwt:Issuer", "https://ledger-api.test" },
+                        { "Jwt:Audience", "https://ledger-api.test" },
+                        { "Jwt:SecretKey", "TestSecretKey_ForIntegrationTests_Minimum32Characters" },
+                        { "Jwt:ClockSkewSeconds", "60" }
+                    });
+                });
             });
 
         _client = _factory.CreateClient();
 
-        // Get DbContext and run migrations
-        using var scope = _factory.Services.CreateScope();
-        _context = scope.ServiceProvider.GetRequiredService<LedgerDbContext>();
-        await _context.Database.MigrateAsync();
+        // Get DbContext and ensure database is created
+        // Create a scope that will be disposed in DisposeAsync
+        _serviceScope = _factory.Services.CreateScope();
+        _context = _serviceScope.ServiceProvider.GetRequiredService<LedgerDbContext>();
+        await _context.Database.EnsureCreatedAsync();
+
+        // Create a user and get token for authenticated requests
+        var email = "trialbalance@example.com";
+        var password = "Password123";
+        var createUserResponse = await _client.PostAsJsonAsync("/api/users", new CreateUserRequest(email, password));
+        createUserResponse.EnsureSuccessStatusCode();
+        
+        var loginResponse = await _client.PostAsJsonAsync("/api/auth/login", new LoginRequest(email, password));
+        loginResponse.EnsureSuccessStatusCode();
+        var loginResult = await JsonHelper.ReadFromJsonAsync<LoginResponse>(loginResponse.Content);
+        Assert.NotNull(loginResult);
+        Assert.NotNull(loginResult.Token);
+        _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", loginResult.Token);
 
         // Create test accounts
         var cashResponse = await _client.PostAsJsonAsync("/api/accounts", new CreateAccountRequest("Cash", AccountType.Asset, true));
-        var cashAccount = await cashResponse.Content.ReadFromJsonAsync<AccountResponse>();
+        cashResponse.EnsureSuccessStatusCode();
+        var cashAccount = await cashResponse.Content.ReadFromJsonAsync<AccountResponse>(JsonHelper.GetJsonOptions());
         _cashAccountId = cashAccount?.Id;
 
         var revenueResponse = await _client.PostAsJsonAsync("/api/accounts", new CreateAccountRequest("Revenue", AccountType.Revenue, true));
-        var revenueAccount = await revenueResponse.Content.ReadFromJsonAsync<AccountResponse>();
+        revenueResponse.EnsureSuccessStatusCode();
+        var revenueAccount = await revenueResponse.Content.ReadFromJsonAsync<AccountResponse>(JsonHelper.GetJsonOptions());
         _revenueAccountId = revenueAccount?.Id;
 
         var expenseResponse = await _client.PostAsJsonAsync("/api/accounts", new CreateAccountRequest("Expense", AccountType.Expense, true));
-        var expenseAccount = await expenseResponse.Content.ReadFromJsonAsync<AccountResponse>();
+        expenseResponse.EnsureSuccessStatusCode();
+        var expenseAccount = await expenseResponse.Content.ReadFromJsonAsync<AccountResponse>(JsonHelper.GetJsonOptions());
         _expenseAccountId = expenseAccount?.Id;
 
         var zeroActivityResponse = await _client.PostAsJsonAsync("/api/accounts", new CreateAccountRequest("ZeroActivity", AccountType.Asset, true));
-        var zeroActivityAccount = await zeroActivityResponse.Content.ReadFromJsonAsync<AccountResponse>();
+        zeroActivityResponse.EnsureSuccessStatusCode();
+        var zeroActivityAccount = await zeroActivityResponse.Content.ReadFromJsonAsync<AccountResponse>(JsonHelper.GetJsonOptions());
         _zeroActivityAccountId = zeroActivityAccount?.Id;
     }
 
@@ -101,13 +128,17 @@ public class TrialBalanceControllerTests : IAsyncLifetime
         {
             await _context.DisposeAsync();
         }
-
-        _client?.Dispose();
-        _factory?.Dispose();
-
-        if (_postgresContainer != null)
+        if (_serviceScope != null)
         {
-            await _postgresContainer.DisposeAsync();
+            _serviceScope.Dispose();
+        }
+        if (_client != null)
+        {
+            _client.Dispose();
+        }
+        if (_factory != null)
+        {
+            await _factory.DisposeAsync();
         }
     }
 
@@ -122,7 +153,7 @@ public class TrialBalanceControllerTests : IAsyncLifetime
 
         // Assert
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        var trialBalance = await response.Content.ReadFromJsonAsync<TrialBalanceResponse>();
+        var trialBalance = await JsonHelper.ReadFromJsonAsync<TrialBalanceResponse>(response.Content);
         Assert.NotNull(trialBalance);
         Assert.True(trialBalance.Items.Count >= 4); // At least our test accounts
         Assert.All(trialBalance.Items, item =>
@@ -151,14 +182,14 @@ public class TrialBalanceControllerTests : IAsyncLifetime
                 new(_revenueAccountId.Value, LineDirection.Credit, 100.00m)
             });
 
-        await _client.PostAsJsonAsync("/api/journal-entries", entryRequest);
+        await _client.PostAsJsonAsync("/api/JournalEntries", entryRequest);
 
         // Act
         var response = await _client.GetAsync("/api/reports/trial-balance");
 
         // Assert
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        var trialBalance = await response.Content.ReadFromJsonAsync<TrialBalanceResponse>();
+        var trialBalance = await JsonHelper.ReadFromJsonAsync<TrialBalanceResponse>(response.Content);
         Assert.NotNull(trialBalance);
         Assert.Equal(0, trialBalance.TotalNet);
 
@@ -209,15 +240,15 @@ public class TrialBalanceControllerTests : IAsyncLifetime
                 new(_cashAccountId.Value, LineDirection.Credit, 50.00m)
             });
 
-        await _client.PostAsJsonAsync("/api/journal-entries", entry1);
-        await _client.PostAsJsonAsync("/api/journal-entries", entry2);
+        await _client.PostAsJsonAsync("/api/JournalEntries", entry1);
+        await _client.PostAsJsonAsync("/api/JournalEntries", entry2);
 
         // Act
         var response = await _client.GetAsync("/api/reports/trial-balance");
 
         // Assert
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        var trialBalance = await response.Content.ReadFromJsonAsync<TrialBalanceResponse>();
+        var trialBalance = await JsonHelper.ReadFromJsonAsync<TrialBalanceResponse>(response.Content);
         Assert.NotNull(trialBalance);
 
         // Verify each account appears exactly once
@@ -260,15 +291,15 @@ public class TrialBalanceControllerTests : IAsyncLifetime
                 new(_cashAccountId.Value, LineDirection.Credit, 50.00m)
             });
 
-        await _client.PostAsJsonAsync("/api/journal-entries", entry1);
-        await _client.PostAsJsonAsync("/api/journal-entries", entry2);
+        await _client.PostAsJsonAsync("/api/JournalEntries", entry1);
+        await _client.PostAsJsonAsync("/api/JournalEntries", entry2);
 
         // Act
         var response = await _client.GetAsync("/api/reports/trial-balance");
 
         // Assert
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        var trialBalance = await response.Content.ReadFromJsonAsync<TrialBalanceResponse>();
+        var trialBalance = await JsonHelper.ReadFromJsonAsync<TrialBalanceResponse>(response.Content);
         Assert.NotNull(trialBalance);
         Assert.Equal(0, trialBalance.TotalNet);
 
@@ -297,13 +328,20 @@ public class TrialBalanceControllerTests : IAsyncLifetime
                 new(_revenueAccountId.Value, LineDirection.Credit, 100.00m)
             });
 
-        await _client.PostAsJsonAsync("/api/journal-entries", entry1);
+        var response1 = await _client.PostAsJsonAsync("/api/JournalEntries", entry1);
+        response1.EnsureSuccessStatusCode();
+        var createdEntry1 = await JsonHelper.ReadFromJsonAsync<JournalEntryResponse>(response1.Content);
+        Assert.NotNull(createdEntry1);
 
-        // Wait a moment to ensure different timestamps
+        // Wait a moment to ensure different timestamps and ensure the first entry is fully persisted
+        await Task.Delay(200);
+
+        // Get the asOf date - use the first entry's PostedAt plus a small offset to ensure it's included
+        // This ensures the asOf date is definitely after the first entry but before the second
+        var asOf = createdEntry1.PostedAt.AddMilliseconds(100);
+
+        // Wait a bit more to ensure asOf is definitely before the second entry's PostedAt
         await Task.Delay(100);
-
-        // Get the asOf date (now, before second entry)
-        var asOf = DateTime.UtcNow;
 
         // Create second entry (after asOf)
         var entry2 = new CreateJournalEntryRequest(
@@ -314,14 +352,17 @@ public class TrialBalanceControllerTests : IAsyncLifetime
                 new(_revenueAccountId.Value, LineDirection.Credit, 50.00m)
             });
 
-        await _client.PostAsJsonAsync("/api/journal-entries", entry2);
+        var response2 = await _client.PostAsJsonAsync("/api/JournalEntries", entry2);
+        response2.EnsureSuccessStatusCode();
 
         // Act - Get trial balance as of the date between entries
-        var response = await _client.GetAsync($"/api/reports/trial-balance?asOf={asOf:yyyy-MM-ddTHH:mm:ssZ}");
+        // Use ISO 8601 format (round-trip format) for reliable parsing
+        var asOfString = Uri.EscapeDataString(asOf.ToString("o"));
+        var response = await _client.GetAsync($"/api/reports/trial-balance?asOf={asOfString}");
 
         // Assert
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        var trialBalance = await response.Content.ReadFromJsonAsync<TrialBalanceResponse>();
+        var trialBalance = await JsonHelper.ReadFromJsonAsync<TrialBalanceResponse>(response.Content);
         Assert.NotNull(trialBalance);
         Assert.Equal(0, trialBalance.TotalNet);
 
@@ -351,14 +392,14 @@ public class TrialBalanceControllerTests : IAsyncLifetime
                 new(_revenueAccountId.Value, LineDirection.Credit, 100.00m)
             });
 
-        await _client.PostAsJsonAsync("/api/journal-entries", entryRequest);
+        await _client.PostAsJsonAsync("/api/JournalEntries", entryRequest);
 
         // Act
         var response = await _client.GetAsync("/api/reports/trial-balance");
 
         // Assert
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        var trialBalance = await response.Content.ReadFromJsonAsync<TrialBalanceResponse>();
+        var trialBalance = await JsonHelper.ReadFromJsonAsync<TrialBalanceResponse>(response.Content);
         Assert.NotNull(trialBalance);
 
         // Verify zero-activity account is included
@@ -381,7 +422,7 @@ public class TrialBalanceControllerTests : IAsyncLifetime
 
         // Assert
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        var trialBalance = await response.Content.ReadFromJsonAsync<TrialBalanceResponse>();
+        var trialBalance = await JsonHelper.ReadFromJsonAsync<TrialBalanceResponse>(response.Content);
         Assert.NotNull(trialBalance);
 
         // Verify accounts are ordered by name
@@ -409,14 +450,14 @@ public class TrialBalanceControllerTests : IAsyncLifetime
                 new(_expenseAccountId.Value, LineDirection.Credit, 50.00m)
             });
 
-        await _client.PostAsJsonAsync("/api/journal-entries", entryRequest);
+        await _client.PostAsJsonAsync("/api/JournalEntries", entryRequest);
 
         // Act
         var response = await _client.GetAsync("/api/reports/trial-balance");
 
         // Assert
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        var trialBalance = await response.Content.ReadFromJsonAsync<TrialBalanceResponse>();
+        var trialBalance = await JsonHelper.ReadFromJsonAsync<TrialBalanceResponse>(response.Content);
         Assert.NotNull(trialBalance);
 
         var cashItem = trialBalance.Items.FirstOrDefault(i => i.AccountId == _cashAccountId.Value);

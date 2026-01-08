@@ -538,4 +538,3 @@ tests/Ledger.Tests/
 ## Security Considerations
 
 - **Immutable Audit Logs**: Append-only, no updates or deletes
-- **Sensitive Data Exclusion**: Passwords, secrets never logged

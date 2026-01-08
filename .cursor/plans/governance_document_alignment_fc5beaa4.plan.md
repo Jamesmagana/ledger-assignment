@@ -137,6 +137,3 @@ Ensure all documents follow consistent formatting:
 
 - Verify all `.cursorrules` requirements are reflected in decision logs
 - Ensure phase descriptions align with actual rules
-- Add any missing architectural decisions if gaps are found
-
-3. **Final Consistency Check:**

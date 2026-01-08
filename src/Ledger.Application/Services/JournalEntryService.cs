@@ -146,14 +146,21 @@ public class JournalEntryService : IJournalEntryService
         var requestHash = _hashService.ComputeHash(request);
         var postedAt = DateTime.UtcNow;
 
+        // Generate ID for journal entry before creating lines
+        // This ensures the ID is available when creating JournalEntryLine instances
+        var journalEntryId = Guid.NewGuid();
+
         var journalEntry = new JournalEntry(
             request.ExternalId,
             requestHash,
-            postedAt);
+            postedAt)
+        {
+            Id = journalEntryId
+        };
 
         var journalEntryLines = validatedLines.Select(line =>
             new JournalEntryLine(
-                journalEntry.Id,
+                journalEntryId,
                 line.AccountId,
                 line.Direction,
                 line.Amount)

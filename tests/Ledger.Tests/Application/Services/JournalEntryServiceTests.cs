@@ -265,6 +265,14 @@ public class JournalEntryServiceTests
             .Setup(s => s.ComputeHash(It.IsAny<CreateJournalEntryModel>()))
             .Returns("hash123");
 
+        _accountRepositoryMock
+            .Setup(r => r.GetByIdAsync(accountId1, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new Account("Account1", AccountType.Asset) { Id = accountId1 });
+
+        _accountRepositoryMock
+            .Setup(r => r.GetByIdAsync(accountId2, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new Account("Account2", AccountType.Revenue) { Id = accountId2 });
+
         _journalEntryRepositoryMock
             .Setup(r => r.FindByExternalIdAsync("ext-123", It.IsAny<CancellationToken>()))
             .ReturnsAsync(existingEntry);
@@ -309,6 +317,14 @@ public class JournalEntryServiceTests
         _hashServiceMock
             .Setup(s => s.ComputeHash(It.IsAny<CreateJournalEntryModel>()))
             .Returns("hash123");
+
+        _accountRepositoryMock
+            .Setup(r => r.GetByIdAsync(accountId1, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new Account("Account1", AccountType.Asset) { Id = accountId1 });
+
+        _accountRepositoryMock
+            .Setup(r => r.GetByIdAsync(accountId2, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new Account("Account2", AccountType.Revenue) { Id = accountId2 });
 
         _journalEntryRepositoryMock
             .Setup(r => r.FindByExternalIdAsync("ext-123", It.IsAny<CancellationToken>()))

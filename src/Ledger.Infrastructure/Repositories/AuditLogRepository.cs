@@ -20,9 +20,9 @@ public class AuditLogRepository : IAuditLogRepository
     public async Task AddAsync(AuditLog auditLog, CancellationToken cancellationToken = default)
     {
         _context.AuditLogs.Add(auditLog);
-        // Note: SaveChanges is called by the interceptor or calling code
-        // This repository just adds to the context
-        await Task.CompletedTask;
+        // Save changes immediately for manually created audit logs (e.g., LOGIN events)
+        // The interceptor skips AuditLog entities to prevent infinite recursion, so this is safe
+        await _context.SaveChangesAsync(cancellationToken);
     }
 
     public async Task AddRangeAsync(IEnumerable<AuditLog> auditLogs, CancellationToken cancellationToken = default)

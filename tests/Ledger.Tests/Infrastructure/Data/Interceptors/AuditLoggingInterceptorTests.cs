@@ -1,6 +1,4 @@
 using System.Security.Claims;
-using Ledger.Application.Repositories;
-using Ledger.Application.Services;
 using Ledger.Domain.Entities;
 using Ledger.Domain.Enums;
 using Ledger.Infrastructure.Data;
@@ -8,7 +6,6 @@ using Ledger.Infrastructure.Data.Interceptors;
 using Ledger.Infrastructure.Data.Services;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Diagnostics;
 using Moq;
 using Xunit;
 
@@ -32,15 +29,14 @@ public class AuditLoggingInterceptorTests
         httpContextAccessor.Setup(x => x.HttpContext).Returns(httpContext);
 
         var userContextService = new UserContextService(httpContextAccessor.Object);
-        var auditLogService = new Mock<IAuditLogService>();
 
         var interceptor = new AuditLoggingInterceptor(
             httpContextAccessor.Object,
-            userContextService,
-            auditLogService.Object);
+            userContextService);
 
         var options = new DbContextOptionsBuilder<LedgerDbContext>()
             .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString())
+            .AddInterceptors(interceptor)
             .Options;
 
         using var context = new LedgerDbContext(options);
@@ -48,24 +44,20 @@ public class AuditLoggingInterceptorTests
 
         // Act
         context.Accounts.Add(account);
-        await interceptor.SavingChangesAsync(
-            new DbContextEventData(
-                new FakeEventData(),
-                context,
-                new FakeEventData()),
-            default,
-            CancellationToken.None);
+        await context.SaveChangesAsync();
 
         // Assert
-        auditLogService.Verify(a => a.LogEntityChangeAsync(
-            "Account",
-            account.Id,
-            "CREATE",
-            null,
-            It.IsAny<object>(),
-            userId,
-            correlationId,
-            It.IsAny<CancellationToken>()), Times.Once);
+        var auditLogs = await context.AuditLogs
+            .Where(a => a.EntityName == "Account" && a.EntityId == account.Id)
+            .ToListAsync();
+
+        Assert.Single(auditLogs);
+        var auditLog = auditLogs[0];
+        Assert.Equal("CREATE", auditLog.Action);
+        Assert.Equal(userId, auditLog.PerformedBy);
+        Assert.Equal(correlationId, auditLog.CorrelationId);
+        Assert.Null(auditLog.OldValues);
+        Assert.NotNull(auditLog.NewValues);
     }
 
     [Fact]
@@ -84,15 +76,14 @@ public class AuditLoggingInterceptorTests
         httpContextAccessor.Setup(x => x.HttpContext).Returns(httpContext);
 
         var userContextService = new UserContextService(httpContextAccessor.Object);
-        var auditLogService = new Mock<IAuditLogService>();
 
         var interceptor = new AuditLoggingInterceptor(
             httpContextAccessor.Object,
-            userContextService,
-            auditLogService.Object);
+            userContextService);
 
         var options = new DbContextOptionsBuilder<LedgerDbContext>()
             .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString())
+            .AddInterceptors(interceptor)
             .Options;
 
         using var context = new LedgerDbContext(options);
@@ -100,38 +91,34 @@ public class AuditLoggingInterceptorTests
         context.Accounts.Add(account);
         await context.SaveChangesAsync();
 
-        // Modify the account
-        var updatedAccount = account.WithIsActive(false);
-        context.Entry(account).CurrentValues.SetValues(new
-        {
-            updatedAccount.Id,
-            updatedAccount.Name,
-            updatedAccount.Type,
-            updatedAccount.IsActive,
-            updatedAccount.CreatedAt,
-            updatedAccount.UpdatedAt
-        });
-        context.Entry(account).State = EntityState.Modified;
+        // Clear change tracker to simulate a new context load
+        context.ChangeTracker.Clear();
+
+        // Reload and modify the account
+        var accountToUpdate = await context.Accounts.FindAsync(account.Id);
+        Assert.NotNull(accountToUpdate);
+        
+        // Create updated account instance
+        var updatedAccount = accountToUpdate.WithIsActive(false);
+        
+        // Detach the original and attach the new one
+        context.Entry(accountToUpdate).State = EntityState.Detached;
+        context.Entry(updatedAccount).State = EntityState.Modified;
 
         // Act
-        await interceptor.SavingChangesAsync(
-            new DbContextEventData(
-                new FakeEventData(),
-                context,
-                new FakeEventData()),
-            default,
-            CancellationToken.None);
+        await context.SaveChangesAsync();
 
         // Assert
-        auditLogService.Verify(a => a.LogEntityChangeAsync(
-            "Account",
-            account.Id,
-            "UPDATE",
-            It.IsAny<object>(),
-            It.IsAny<object>(),
-            userId,
-            correlationId,
-            It.IsAny<CancellationToken>()), Times.Once);
+        var auditLogs = await context.AuditLogs
+            .Where(a => a.EntityName == "Account" && a.EntityId == updatedAccount.Id && a.Action == "UPDATE")
+            .ToListAsync();
+
+        Assert.Single(auditLogs);
+        var auditLog = auditLogs[0];
+        Assert.Equal("UPDATE", auditLog.Action);
+        Assert.Equal(userId, auditLog.PerformedBy);
+        Assert.Equal(correlationId, auditLog.CorrelationId);
+        Assert.NotNull(auditLog.NewValues);
     }
 
     [Fact]
@@ -146,15 +133,14 @@ public class AuditLoggingInterceptorTests
         httpContextAccessor.Setup(x => x.HttpContext).Returns(httpContext);
 
         var userContextService = new Mock<IUserContextService>();
-        var auditLogService = new Mock<IAuditLogService>();
 
         var interceptor = new AuditLoggingInterceptor(
             httpContextAccessor.Object,
-            userContextService.Object,
-            auditLogService.Object);
+            userContextService.Object);
 
         var options = new DbContextOptionsBuilder<LedgerDbContext>()
             .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString())
+            .AddInterceptors(interceptor)
             .Options;
 
         using var context = new LedgerDbContext(options);
@@ -162,28 +148,18 @@ public class AuditLoggingInterceptorTests
         context.Users.Add(user);
 
         // Act
-        await interceptor.SavingChangesAsync(
-            new DbContextEventData(
-                new FakeEventData(),
-                context,
-                new FakeEventData()),
-            default,
-            CancellationToken.None);
+        await context.SaveChangesAsync();
 
         // Assert
-        auditLogService.Verify(a => a.LogEntityChangeAsync(
-            It.IsAny<string>(),
-            It.IsAny<Guid>(),
-            It.IsAny<string>(),
-            It.IsAny<object?>(),
-            It.Is<object>(obj =>
-            {
-                var json = System.Text.Json.JsonSerializer.Serialize(obj);
-                return !json.Contains("PasswordHash") && !json.Contains("passwordHash");
-            }),
-            It.IsAny<Guid?>(),
-            It.IsAny<string>(),
-            It.IsAny<CancellationToken>()), Times.Once);
+        var auditLogs = await context.AuditLogs
+            .Where(a => a.EntityName == "User" && a.EntityId == user.Id)
+            .ToListAsync();
+
+        Assert.Single(auditLogs);
+        var auditLog = auditLogs[0];
+        var newValuesJson = auditLog.NewValues ?? string.Empty;
+        Assert.DoesNotContain("PasswordHash", newValuesJson, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("passwordHash", newValuesJson, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -197,15 +173,14 @@ public class AuditLoggingInterceptorTests
         httpContextAccessor.Setup(x => x.HttpContext).Returns(httpContext);
 
         var userContextService = new Mock<IUserContextService>();
-        var auditLogService = new Mock<IAuditLogService>();
 
         var interceptor = new AuditLoggingInterceptor(
             httpContextAccessor.Object,
-            userContextService.Object,
-            auditLogService.Object);
+            userContextService.Object);
 
         var options = new DbContextOptionsBuilder<LedgerDbContext>()
             .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString())
+            .AddInterceptors(interceptor)
             .Options;
 
         using var context = new LedgerDbContext(options);
@@ -213,32 +188,18 @@ public class AuditLoggingInterceptorTests
         context.Accounts.Add(account);
 
         // Act
-        await interceptor.SavingChangesAsync(
-            new DbContextEventData(
-                new FakeEventData(),
-                context,
-                new FakeEventData()),
-            default,
-            CancellationToken.None);
+        await context.SaveChangesAsync();
 
         // Assert
-        auditLogService.Verify(a => a.LogEntityChangeAsync(
-            It.IsAny<string>(),
-            It.IsAny<Guid>(),
-            It.IsAny<string>(),
-            It.IsAny<object?>(),
-            It.IsAny<object?>(),
-            It.IsAny<Guid?>(),
-            It.IsAny<string>(), // CorrelationId should be generated
-            It.IsAny<CancellationToken>()), Times.Once);
-    }
+        var auditLogs = await context.AuditLogs
+            .Where(a => a.EntityName == "Account" && a.EntityId == account.Id)
+            .ToListAsync();
 
-    // Helper class for testing
-    private class FakeEventData : IEventData
-    {
-        public DateTimeOffset EventDate => DateTimeOffset.UtcNow;
-        public EventId EventId => new EventId(1);
-        public object? EventSource => null;
+        Assert.Single(auditLogs);
+        var auditLog = auditLogs[0];
+        // CorrelationId should be generated (non-empty GUID string)
+        Assert.NotNull(auditLog.CorrelationId);
+        Assert.True(Guid.TryParse(auditLog.CorrelationId, out _));
     }
 }
 

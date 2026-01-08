@@ -1,0 +1,97 @@
+Summary
+  Generated on: 1/9/2026 - 1:21:57 AM
+  Coverage date: 1/9/2026 - 1:18:31 AM
+  Parser: Cobertura
+  Assemblies: 4
+  Classes: 69
+  Files: 69
+  Line coverage: 58.4%
+  Covered lines: 1527
+  Uncovered lines: 1084
+  Coverable lines: 2611
+  Total lines: 4602
+  Branch coverage: 67.4% (213 of 316)
+  Covered branches: 213
+  Total branches: 316
+  Method coverage: 92.4% (232 of 251)
+  Full method coverage: 83.2% (209 of 251)
+  Covered methods: 232
+  Fully covered methods: 209
+  Total methods: 251
+
+Ledger.Api                                                                  87.4%
+  Ledger.Api.Configuration.JwtSettings                                       100%
+  Ledger.Api.Controllers.AccountsController                                  100%
+  Ledger.Api.Controllers.AuthController                                      100%
+  Ledger.Api.Controllers.JournalEntriesController                            100%
+  Ledger.Api.Controllers.ReportsController                                   100%
+  Ledger.Api.Controllers.UsersController                                     100%
+  Ledger.Api.DTOs.Accounts.AccountResponse                                   100%
+  Ledger.Api.DTOs.Accounts.CreateAccountRequest                              100%
+  Ledger.Api.DTOs.Accounts.UpdateAccountRequest                              100%
+  Ledger.Api.DTOs.Auth.LoginRequest                                          100%
+  Ledger.Api.DTOs.Auth.LoginResponse                                         100%
+  Ledger.Api.DTOs.JournalEntries.CreateJournalEntryLineRequest               100%
+  Ledger.Api.DTOs.JournalEntries.CreateJournalEntryRequest                   100%
+  Ledger.Api.DTOs.JournalEntries.JournalEntryLineResponse                    100%
+  Ledger.Api.DTOs.JournalEntries.JournalEntryResponse                        100%
+  Ledger.Api.DTOs.Reports.TrialBalanceItemResponse                           100%
+  Ledger.Api.DTOs.Reports.TrialBalanceResponse                               100%
+  Ledger.Api.DTOs.Users.CreateUserRequest                                    100%
+  Ledger.Api.DTOs.Users.UserResponse                                         100%
+  Ledger.Api.Middleware.CorrelationIdMiddleware                              100%
+  Ledger.Api.Middleware.CorrelationIdMiddlewareExtensions                    100%
+  Ledger.Api.Middleware.ExceptionHandlingMiddleware                         59.1%
+  Ledger.Api.Middleware.ExceptionHandlingMiddlewareExtensions                100%
+  Ledger.Api.Models.ProblemDetailsExtensions                                62.5%
+  Program                                                                   92.6%
+
+Ledger.Application                                                          84.2%
+  Ledger.Application.Exceptions.ConflictException                           55.5%
+  Ledger.Application.Exceptions.NotFoundException                           55.5%
+  Ledger.Application.Exceptions.UnauthorizedException                       55.5%
+  Ledger.Application.Exceptions.ValidationException                         55.5%
+  Ledger.Application.Models.CreateJournalEntryLineModel                      100%
+  Ledger.Application.Models.CreateJournalEntryModel                          100%
+  Ledger.Application.Models.TrialBalanceItem                                 100%
+  Ledger.Application.Services.AccountService                                74.1%
+  Ledger.Application.Services.AuditLogService                                100%
+  Ledger.Application.Services.AuthenticationService                         97.5%
+  Ledger.Application.Services.JournalEntryResult                             100%
+  Ledger.Application.Services.JournalEntryService                           77.8%
+  Ledger.Application.Services.JwtTokenService                                100%
+  Ledger.Application.Services.JwtTokenSettings                               100%
+  Ledger.Application.Services.LoginResult                                    100%
+  Ledger.Application.Services.PasswordHasher                                89.4%
+  Ledger.Application.Services.RequestHashService                             100%
+  Ledger.Application.Services.SensitiveFieldExcluder                          90%
+  Ledger.Application.Services.TrialBalanceResult                             100%
+  Ledger.Application.Services.TrialBalanceService                           71.4%
+  Ledger.Application.Services.UserService                                   88.7%
+
+Ledger.Domain                                                               87.2%
+  Ledger.Domain.Entities.Account                                              90%
+  Ledger.Domain.Entities.AuditLog                                           83.7%
+  Ledger.Domain.Entities.BaseEntity                                          100%
+  Ledger.Domain.Entities.JournalEntry                                       83.3%
+  Ledger.Domain.Entities.JournalEntryLine                                   80.9%
+  Ledger.Domain.Entities.User                                               91.6%
+
+Ledger.Infrastructure                                                       30.1%
+  Ledger.Infrastructure.Data.Configurations.AccountConfiguration             100%
+  Ledger.Infrastructure.Data.Configurations.AuditLogConfiguration            100%
+  Ledger.Infrastructure.Data.Configurations.JournalEntryConfiguration        100%
+  Ledger.Infrastructure.Data.Configurations.JournalEntryLineConfiguration    100%
+  Ledger.Infrastructure.Data.Configurations.UserConfiguration                100%
+  Ledger.Infrastructure.Data.Interceptors.AuditLoggingInterceptor           83.5%
+  Ledger.Infrastructure.Data.LedgerDbContext                                 100%
+  Ledger.Infrastructure.Data.Services.UserContextService                     100%
+  Ledger.Infrastructure.Migrations.AddAuditLogsTable                           0%
+  Ledger.Infrastructure.Migrations.AddUserEntity                               0%
+  Ledger.Infrastructure.Migrations.InitialCreate                               0%
+  Ledger.Infrastructure.Migrations.LedgerDbContextModelSnapshot                0%
+  Ledger.Infrastructure.Repositories.AccountRepository                       100%
+  Ledger.Infrastructure.Repositories.AuditLogRepository                     66.6%
+  Ledger.Infrastructure.Repositories.JournalEntryRepository                 90.4%
+  Ledger.Infrastructure.Repositories.TrialBalanceRepository                  100%
+  Ledger.Infrastructure.Repositories.UserRepository                         82.1%

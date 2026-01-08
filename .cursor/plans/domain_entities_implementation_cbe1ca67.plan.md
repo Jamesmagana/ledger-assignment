@@ -216,7 +216,3 @@ Domain entities will NOT contain validation logic (per Clean Architecture):
 - Repository interfaces
 
 ## Documentation Updates
-
-Update `PROMPTS.md` with Phase 2 decisions:
-
-- Entity structure and properties

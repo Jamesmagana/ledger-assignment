@@ -544,5 +544,3 @@ public class JwtTokenService : IJwtTokenService
 
 - **No User Enumeration:** Always return generic error message
 - **Timing-Safe Verification:** Always perform password verification
-- **Password Security:** Never store or return plain text passwords
-- **Email Uniqueness:** Case-insensitive at DB level

@@ -380,5 +380,3 @@ if (totalNet != 0)
 
 - **LEFT JOIN:** Must use LEFT JOIN to include zero-activity accounts
 - **Aggregation:** Use COALESCE to handle NULL values (zero-activity accounts)
-- **Balance Validation:** TotalNet must equal 0 (enforced in service)
-- **No Duplicates:** GROUP BY ensures each account appears once

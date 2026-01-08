@@ -299,5 +299,3 @@ docs/
 - Unique partial index on JournalEntry.ExternalId
 - No cascade deletes
 - UTC timestamps
-
-4. Migration applies to database successfully

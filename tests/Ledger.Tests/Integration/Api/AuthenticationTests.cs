@@ -3,6 +3,9 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
 using Ledger.Api.DTOs.Accounts;
+using Ledger.Api.DTOs.Auth;
+using Ledger.Api.DTOs.JournalEntries;
+using Ledger.Api.DTOs.Users;
 using Ledger.Domain.Enums;
 using Ledger.Infrastructure.Data;
 using Ledger.Tests.Helpers;
@@ -10,8 +13,8 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Configuration.Memory;
 using Microsoft.Extensions.DependencyInjection;
-using Testcontainers.PostgreSql;
 
 namespace Ledger.Tests.Integration.Api;
 
@@ -20,10 +23,11 @@ namespace Ledger.Tests.Integration.Api;
 /// </summary>
 public class AuthenticationTests : IAsyncLifetime
 {
-    private PostgreSqlContainer? _postgresContainer;
     private WebApplicationFactory<Program>? _factory;
     private HttpClient? _client;
     private LedgerDbContext? _context;
+    private IServiceScope? _serviceScope;
+    private readonly string _databaseName = $"AuthenticationTest_{Guid.NewGuid()}";
     private string? _validToken;
     private string? _testIssuer;
     private string? _testAudience;
@@ -31,16 +35,6 @@ public class AuthenticationTests : IAsyncLifetime
 
     public async Task InitializeAsync()
     {
-        // Start PostgreSQL container
-        _postgresContainer = new PostgreSqlBuilder()
-            .WithImage("postgres:16")
-            .WithDatabase("ledger_test")
-            .WithUsername("test_user")
-            .WithPassword("test_password")
-            .Build();
-
-        await _postgresContainer.StartAsync();
-
         // Test JWT settings
         _testIssuer = "https://ledger-api.test";
         _testAudience = "https://ledger-api.test";
@@ -60,11 +54,12 @@ public class AuthenticationTests : IAsyncLifetime
                         services.Remove(descriptor);
                     }
 
-                    // Add test DbContext
-                    var connectionString = _postgresContainer.GetConnectionString();
+                    // Add test DbContext with in-memory database
+                    // Use fixed database name so test context and API context share the same database
                     services.AddDbContext<LedgerDbContext>(options =>
                     {
-                        options.UseNpgsql(connectionString);
+                        options.UseInMemoryDatabase(databaseName: _databaseName)
+                            .ConfigureWarnings(w => w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.InMemoryEventId.TransactionIgnoredWarning));
                     });
                 });
 
@@ -82,25 +77,30 @@ public class AuthenticationTests : IAsyncLifetime
 
         _client = _factory.CreateClient();
 
-        // Get DbContext and run migrations
-        using var scope = _factory.Services.CreateScope();
-        _context = scope.ServiceProvider.GetRequiredService<LedgerDbContext>();
-        await _context.Database.MigrateAsync();
+        // Get DbContext and ensure database is created
+        // Create a scope that will be disposed in DisposeAsync
+        _serviceScope = _factory.Services.CreateScope();
+        _context = _serviceScope.ServiceProvider.GetRequiredService<LedgerDbContext>();
+        await _context.Database.EnsureCreatedAsync();
 
-        // Generate a valid token for tests
+        // Generate a valid token for tests (but don't set it globally - let each test decide)
         _validToken = TestJwtTokenHelper.GenerateToken(
             _testIssuer,
             _testAudience,
             _testSecretKey);
+        
+        // Only set token for tests that need it - tests checking 401 should clear it
+        // _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", _validToken);
     }
 
     [Fact]
     public async Task GetAccounts_WithoutToken_Returns401Unauthorized()
     {
-        // Arrange - no token in request
+        // Arrange - Remove authorization header
+        _client!.DefaultRequestHeaders.Remove("Authorization");
 
         // Act
-        var response = await _client!.GetAsync("/api/accounts");
+        var response = await _client.GetAsync("/api/accounts");
 
         // Assert
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
@@ -112,19 +112,34 @@ public class AuthenticationTests : IAsyncLifetime
         Assert.Equal("Unauthorized", problemDetails.Title);
         Assert.Equal("UNAUTHORIZED", problemDetails.Extensions?["reasonCode"]?.ToString());
         Assert.NotNull(problemDetails.Extensions?["correlationId"]?.ToString());
+        
     }
 
     [Fact]
     public async Task GetAccounts_WithValidToken_Returns200Ok()
     {
-        // Arrange
-        _client!.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", _validToken);
+        // Arrange - Create a user and get a real token (not just a generated one)
+        var email = "validtoken2@example.com";
+        var password = "Password123";
+        var createUserResponse = await _client!.PostAsJsonAsync("/api/users", new CreateUserRequest(email, password));
+        createUserResponse.EnsureSuccessStatusCode();
+        
+        var loginResponse = await _client.PostAsJsonAsync("/api/auth/login", new LoginRequest(email, password));
+        loginResponse.EnsureSuccessStatusCode();
+        var loginResult = await JsonHelper.ReadFromJsonAsync<LoginResponse>(loginResponse.Content);
+        Assert.NotNull(loginResult);
+        Assert.NotNull(loginResult.Token);
+        
+        _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", loginResult.Token);
 
         // Act
         var response = await _client.GetAsync("/api/accounts");
 
         // Assert
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        
+        // Clean up - remove token
+        _client.DefaultRequestHeaders.Remove("Authorization");
     }
 
     [Fact]
@@ -149,6 +164,9 @@ public class AuthenticationTests : IAsyncLifetime
         Assert.NotNull(problemDetails);
         Assert.Equal(401, problemDetails.Status);
         Assert.Equal("UNAUTHORIZED", problemDetails.Extensions?["reasonCode"]?.ToString());
+        
+        // Clean up - remove token
+        _client.DefaultRequestHeaders.Remove("Authorization");
     }
 
     [Fact]
@@ -169,6 +187,9 @@ public class AuthenticationTests : IAsyncLifetime
         Assert.NotNull(problemDetails);
         Assert.Equal(401, problemDetails.Status);
         Assert.Equal("UNAUTHORIZED", problemDetails.Extensions?["reasonCode"]?.ToString());
+        
+        // Clean up - remove token
+        _client.DefaultRequestHeaders.Remove("Authorization");
     }
 
     [Fact]
@@ -195,26 +216,42 @@ public class AuthenticationTests : IAsyncLifetime
         Assert.NotNull(problemDetails);
         Assert.Equal(401, problemDetails.Status);
         Assert.Equal("UNAUTHORIZED", problemDetails.Extensions?["reasonCode"]?.ToString());
+        
+        // Clean up - remove token
+        _client.DefaultRequestHeaders.Remove("Authorization");
     }
 
     [Fact]
     public async Task PostAccount_WithoutToken_Returns401Unauthorized()
     {
-        // Arrange
+        // Arrange - Remove authorization header
+        _client!.DefaultRequestHeaders.Remove("Authorization");
         var request = new CreateAccountRequest("Test Account", AccountType.Asset, true);
 
         // Act
-        var response = await _client!.PostAsJsonAsync("/api/accounts", request);
+        var response = await _client.PostAsJsonAsync("/api/accounts", request);
 
         // Assert
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        
     }
 
     [Fact]
     public async Task PostAccount_WithValidToken_Returns201Created()
     {
-        // Arrange
-        _client!.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", _validToken);
+        // Arrange - Create a user and get a real token (not just a generated one)
+        var email = "validtoken@example.com";
+        var password = "Password123";
+        var createUserResponse = await _client!.PostAsJsonAsync("/api/users", new CreateUserRequest(email, password));
+        createUserResponse.EnsureSuccessStatusCode();
+        
+        var loginResponse = await _client.PostAsJsonAsync("/api/auth/login", new LoginRequest(email, password));
+        loginResponse.EnsureSuccessStatusCode();
+        var loginResult = await JsonHelper.ReadFromJsonAsync<LoginResponse>(loginResponse.Content);
+        Assert.NotNull(loginResult);
+        Assert.NotNull(loginResult.Token);
+        
+        _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", loginResult.Token);
         var request = new CreateAccountRequest("Test Account", AccountType.Asset, true);
 
         // Act
@@ -222,24 +259,26 @@ public class AuthenticationTests : IAsyncLifetime
 
         // Assert
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        
+        // Clean up - remove token
+        _client.DefaultRequestHeaders.Remove("Authorization");
     }
 
     [Fact]
     public async Task PostJournalEntry_WithoutToken_Returns401Unauthorized()
     {
-        // Arrange
-        var request = new
-        {
-            ExternalId = "test-123",
-            Lines = new[]
+        // Arrange - Remove authorization header
+        _client!.DefaultRequestHeaders.Remove("Authorization");
+        var request = new CreateJournalEntryRequest(
+            ExternalId: "test-123",
+            Lines: new List<CreateJournalEntryLineRequest>
             {
-                new { AccountId = Guid.NewGuid(), Direction = 1, Amount = 100.00m },
-                new { AccountId = Guid.NewGuid(), Direction = 2, Amount = 100.00m }
-            }
-        };
+                new(Guid.NewGuid(), LineDirection.Debit, 100.00m),
+                new(Guid.NewGuid(), LineDirection.Credit, 100.00m)
+            });
 
         // Act
-        var response = await _client!.PostAsJsonAsync("/api/journal-entries", request);
+        var response = await _client.PostAsJsonAsync("/api/JournalEntries", request);
 
         // Assert
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
@@ -248,11 +287,15 @@ public class AuthenticationTests : IAsyncLifetime
     [Fact]
     public async Task GetTrialBalance_WithoutToken_Returns401Unauthorized()
     {
+        // Arrange - Remove authorization header
+        _client!.DefaultRequestHeaders.Remove("Authorization");
+
         // Act
-        var response = await _client!.GetAsync("/api/reports/trial-balance");
+        var response = await _client.GetAsync("/api/reports/trial-balance");
 
         // Assert
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        
     }
 
     [Fact]
@@ -268,9 +311,10 @@ public class AuthenticationTests : IAsyncLifetime
     [Fact]
     public async Task GetAccounts_401Response_IncludesCorrelationId()
     {
-        // Arrange
+        // Arrange - Remove authorization header
+        _client!.DefaultRequestHeaders.Remove("Authorization");
         var correlationId = Guid.NewGuid().ToString();
-        _client!.DefaultRequestHeaders.Add("X-Correlation-Id", correlationId);
+        _client.DefaultRequestHeaders.Add("X-Correlation-Id", correlationId);
 
         // Act
         var response = await _client.GetAsync("/api/accounts");
@@ -280,10 +324,19 @@ public class AuthenticationTests : IAsyncLifetime
         var problemDetails = await response.Content.ReadFromJsonAsync<ProblemDetails>();
         Assert.NotNull(problemDetails);
         Assert.Equal(correlationId, problemDetails.Extensions?["correlationId"]?.ToString());
+        
     }
 
     public async Task DisposeAsync()
     {
+        if (_context != null)
+        {
+            await _context.DisposeAsync();
+        }
+        if (_serviceScope != null)
+        {
+            _serviceScope.Dispose();
+        }
         if (_client != null)
         {
             _client.Dispose();
@@ -291,10 +344,6 @@ public class AuthenticationTests : IAsyncLifetime
         if (_factory != null)
         {
             await _factory.DisposeAsync();
-        }
-        if (_postgresContainer != null)
-        {
-            await _postgresContainer.DisposeAsync();
         }
     }
 }

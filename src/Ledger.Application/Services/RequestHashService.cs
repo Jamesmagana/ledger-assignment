@@ -43,16 +43,22 @@ public class RequestHashService : IRequestHashService
             .ToList();
 
         // Create canonical object (exclude null ExternalId from hash)
-        var canonicalObject = new
+        var linesArray = sortedLines.Select(l => new
         {
-            ExternalId = request.ExternalId, // Include even if null for consistency
-            Lines = sortedLines.Select(l => new
-            {
-                AccountId = l.AccountId,
-                Direction = l.Direction,
-                Amount = l.Amount
-            }).ToList()
-        };
+            AccountId = l.AccountId,
+            Direction = l.Direction,
+            Amount = l.Amount
+        }).ToList();
+
+        object canonicalObject;
+        if (string.IsNullOrWhiteSpace(request.ExternalId))
+        {
+            canonicalObject = new { Lines = linesArray };
+        }
+        else
+        {
+            canonicalObject = new { ExternalId = request.ExternalId, Lines = linesArray };
+        }
 
         // Serialize to compact JSON (no whitespace)
         return JsonSerializer.Serialize(canonicalObject, JsonOptions);
